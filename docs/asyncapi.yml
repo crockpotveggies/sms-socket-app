@@ -1,0 +1,285 @@
+asyncapi: 3.0.0
+info:
+  title: SMS Socket App Gateway
+  version: 0.1.0
+  description: |
+    Local-only WebSocket API exposed by the Android foreground gateway service.
+servers:
+  localGateway:
+    host: "{phoneIp}:8787"
+    protocol: ws
+    description: Connect from the same LAN as the Android device.
+    variables:
+      phoneIp:
+        default: 192.168.1.25
+channels:
+  gateway:
+    address: /
+    messages:
+      authenticate:
+        $ref: "#/components/messages/Authenticate"
+      getGatewayState:
+        $ref: "#/components/messages/GetGatewayState"
+      listSubscriptions:
+        $ref: "#/components/messages/ListSubscriptions"
+      rehydrate:
+        $ref: "#/components/messages/Rehydrate"
+      sendSms:
+        $ref: "#/components/messages/SendSms"
+      ack:
+        $ref: "#/components/messages/Ack"
+      response:
+        $ref: "#/components/messages/Response"
+      smsReceived:
+        $ref: "#/components/messages/SmsReceived"
+      smsOutboundAccepted:
+        $ref: "#/components/messages/SmsOutboundAccepted"
+      smsOutboundSent:
+        $ref: "#/components/messages/SmsOutboundSent"
+      smsOutboundDelivered:
+        $ref: "#/components/messages/SmsOutboundDelivered"
+      smsOutboundFailed:
+        $ref: "#/components/messages/SmsOutboundFailed"
+      gatewayState:
+        $ref: "#/components/messages/GatewayState"
+operations:
+  sendAuthenticate:
+    action: send
+    channel:
+      $ref: "#/channels/gateway"
+    messages:
+      - $ref: "#/channels/gateway/messages/authenticate"
+  sendCommand:
+    action: send
+    channel:
+      $ref: "#/channels/gateway"
+    messages:
+      - $ref: "#/channels/gateway/messages/getGatewayState"
+      - $ref: "#/channels/gateway/messages/listSubscriptions"
+      - $ref: "#/channels/gateway/messages/rehydrate"
+      - $ref: "#/channels/gateway/messages/sendSms"
+      - $ref: "#/channels/gateway/messages/ack"
+  receiveGatewayEvents:
+    action: receive
+    channel:
+      $ref: "#/channels/gateway"
+    messages:
+      - $ref: "#/channels/gateway/messages/response"
+      - $ref: "#/channels/gateway/messages/smsReceived"
+      - $ref: "#/channels/gateway/messages/smsOutboundAccepted"
+      - $ref: "#/channels/gateway/messages/smsOutboundSent"
+      - $ref: "#/channels/gateway/messages/smsOutboundDelivered"
+      - $ref: "#/channels/gateway/messages/smsOutboundFailed"
+      - $ref: "#/channels/gateway/messages/gatewayState"
+components:
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        type:
+          type: string
+        requestId:
+          type:
+            - string
+            - "null"
+        auth:
+          type:
+            - string
+            - "null"
+        timestamp:
+          type:
+            - integer
+            - "null"
+          format: int64
+        payload:
+          type:
+            - object
+            - "null"
+      required:
+        - type
+    SmsPayload:
+      type: object
+      properties:
+        destination:
+          type: string
+        body:
+          type: string
+        subscriptionId:
+          type:
+            - integer
+            - "null"
+      required:
+        - destination
+        - body
+    RehydratePayload:
+      type: object
+      properties:
+        since:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+      required:
+        - since
+  messages:
+    Authenticate:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: authenticate
+    GetGatewayState:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: getGatewayState
+    ListSubscriptions:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: listSubscriptions
+    Rehydrate:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: rehydrate
+              payload:
+                $ref: "#/components/schemas/RehydratePayload"
+    SendSms:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: sendSms
+              payload:
+                $ref: "#/components/schemas/SmsPayload"
+    Ack:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: ack
+    Response:
+      payload:
+        type: object
+        properties:
+          type:
+            const: response
+          requestId:
+            type: string
+          ok:
+            type: boolean
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - ok
+          - timestamp
+    SmsReceived:
+      payload:
+        type: object
+        properties:
+          type:
+            const: sms.received
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - timestamp
+          - payload
+    SmsOutboundAccepted:
+      payload:
+        type: object
+        properties:
+          type:
+            const: sms.outbound.accepted
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - timestamp
+          - payload
+    SmsOutboundSent:
+      payload:
+        type: object
+        properties:
+          type:
+            const: sms.outbound.sent
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - timestamp
+          - payload
+    SmsOutboundDelivered:
+      payload:
+        type: object
+        properties:
+          type:
+            const: sms.outbound.delivered
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - timestamp
+          - payload
+    SmsOutboundFailed:
+      payload:
+        type: object
+        properties:
+          type:
+            const: sms.outbound.failed
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - timestamp
+          - payload
+    GatewayState:
+      payload:
+        type: object
+        properties:
+          type:
+            const: gateway.state
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required:
+          - type
+          - timestamp
+          - payload

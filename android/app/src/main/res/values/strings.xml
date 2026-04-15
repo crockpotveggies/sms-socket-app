@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">SMS Socket App</string>
+    <string name="gateway_notification_channel_name">SMS Socket Gateway</string>
+    <string name="gateway_notification_channel_description">Keeps the local SMS socket gateway alive in the background.</string>
+    <string name="gateway_notification_title">SMS Socket Gateway active</string>
+    <string name="gateway_notification_stop">Stop</string>
+</resources>
