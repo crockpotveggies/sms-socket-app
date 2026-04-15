@@ -89,6 +89,10 @@ type NativeSmsGatewayModule = {
     address?: string;
     limit?: number;
   }): Promise<SmsMessage[]>;
+  markConversationUnread(request: {
+    threadId?: string;
+    address?: string;
+  }): Promise<boolean>;
   markConversationRead(request: {
     threadId?: string;
     address?: string;
@@ -122,6 +126,8 @@ export const SmsGateway = {
     address?: string;
     limit?: number;
   }) => SmsGatewayModule.getConversationMessages(request),
+  markConversationUnread: (request: {threadId?: string; address?: string}) =>
+    SmsGatewayModule.markConversationUnread(request),
   markConversationRead: (request: {threadId?: string; address?: string}) =>
     SmsGatewayModule.markConversationRead(request),
   deleteConversation: (request: {threadId?: string; address?: string}) =>

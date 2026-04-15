@@ -220,6 +220,24 @@ class SmsGatewayModule(
   }
 
   @ReactMethod
+  fun markConversationUnread(request: ReadableMap, promise: Promise) {
+    if (!GatewayStatusFactory.isDefaultSmsApp(reactContext)) {
+      promise.reject(
+        "ROLE_SMS_REQUIRED",
+        "App must be the default SMS handler before updating conversation state.",
+      )
+      return
+    }
+
+    val threadId = if (request.hasKey("threadId")) request.getString("threadId") else null
+    val address = if (request.hasKey("address")) request.getString("address") else null
+
+    promise.resolve(
+      SmsConversationRepository(reactContext).markConversationUnread(threadId, address),
+    )
+  }
+
+  @ReactMethod
   fun deleteConversation(request: ReadableMap, promise: Promise) {
     if (!GatewayStatusFactory.isDefaultSmsApp(reactContext)) {
       promise.reject(

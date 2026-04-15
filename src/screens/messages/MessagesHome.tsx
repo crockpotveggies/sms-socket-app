@@ -14,7 +14,7 @@ export function MessagesHome({
   unreadConversationCount,
   onToggleUnreadOnly,
   onOpenConversation,
-  onMarkConversationRead,
+  onToggleConversationReadState,
   onDeleteConversation,
   onCompose,
   onRequestRole,
@@ -27,7 +27,7 @@ export function MessagesHome({
   unreadConversationCount: number;
   onToggleUnreadOnly: (value: boolean) => void;
   onOpenConversation: (conversation: SmsConversation) => void | Promise<void>;
-  onMarkConversationRead: (
+  onToggleConversationReadState: (
     conversation: Pick<SmsConversation, 'threadId' | 'address'>,
   ) => void | Promise<void>;
   onDeleteConversation: (
@@ -88,7 +88,7 @@ export function MessagesHome({
               key={`${conversation.threadId}-${conversation.id}`}
               conversation={conversation}
               onOpen={onOpenConversation}
-              onMarkRead={onMarkConversationRead}
+              onToggleReadState={onToggleConversationReadState}
               onDelete={onDeleteConversation}
             />
           ))

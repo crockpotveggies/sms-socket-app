@@ -11,12 +11,12 @@ import {SWIPE_ACTION_WIDTH, styles} from '../../styles/appStyles';
 export function SwipeableConversationRow({
   conversation,
   onOpen,
-  onMarkRead,
+  onToggleReadState,
   onDelete,
 }: {
   conversation: SmsConversation;
   onOpen: (conversation: SmsConversation) => void | Promise<void>;
-  onMarkRead: (
+  onToggleReadState: (
     conversation: Pick<SmsConversation, 'threadId' | 'address'>,
   ) => void | Promise<void>;
   onDelete: (
@@ -78,9 +78,9 @@ export function SwipeableConversationRow({
     onOpen(conversation);
   };
 
-  const handleMarkRead = () => {
+  const handleToggleReadState = () => {
     animateTo(0);
-    onMarkRead(conversation);
+    onToggleReadState(conversation);
   };
 
   const handleDelete = () => {
@@ -94,9 +94,13 @@ export function SwipeableConversationRow({
         <View style={styles.swipeLeftActionWrap}>
           <Pressable
             accessibilityRole="button"
-            onPress={handleMarkRead}
+            onPress={handleToggleReadState}
             style={[styles.swipeActionButton, styles.swipeActionRead]}>
-            <Text style={styles.swipeActionText}>Mark read</Text>
+            <Text style={styles.swipeActionText}>
+              {conversation.read && conversation.unreadCount === 0
+                ? 'Mark unread'
+                : 'Mark read'}
+            </Text>
           </Pressable>
         </View>
         <View style={styles.swipeRightActionWrap}>

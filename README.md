@@ -78,9 +78,39 @@ A websocket-focused Python TUI lives under [`tools/dev`](/C:/Users/justi/Project
 Quick start:
 
 ```bash
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r tools/dev/requirements.txt
 python -m tools.dev.sms_gateway_tui
 ```
+
+To connect to a different device or override the AsyncAPI default URL:
+
+```bash
+python -m tools.dev.sms_gateway_tui --url ws://192.168.1.25:8787/
+```
+
+Suggested interactive flow:
+
+1. Start the Android gateway from the app and note the API key.
+2. Launch the TUI from the repo root.
+3. Run `connect` if you need to reconnect or switch URLs.
+4. Run `auth <api-key>`.
+5. Use `state` to verify the gateway is healthy and `subscriptions` to inspect SIM slots.
+6. Send a message with `send <phone> <message> [subscription-id]`.
+7. Request history with `history [since-ms] [limit]`.
+
+Example session:
+
+```text
+auth abc123
+state
+subscriptions
+send +15551234567 "hello from the terminal"
+history 0 20
+```
+
+The TUI prints websocket events as they arrive, so inbound SMS and outbound delivery updates will show up in the console automatically.
 
 ## Limitations
 

@@ -155,10 +155,22 @@ class SmsConversationRepository(private val context: Context) {
   }
 
   fun markConversationRead(threadId: String? = null, address: String? = null): Boolean {
+    return updateConversationReadState(threadId, address, true)
+  }
+
+  fun markConversationUnread(threadId: String? = null, address: String? = null): Boolean {
+    return updateConversationReadState(threadId, address, false)
+  }
+
+  private fun updateConversationReadState(
+    threadId: String?,
+    address: String?,
+    read: Boolean,
+  ): Boolean {
     val selectionData = selectionForConversation(threadId, address) ?: return false
     val values = ContentValues().apply {
-      put(Telephony.Sms.READ, 1)
-      put(Telephony.Sms.SEEN, 1)
+      put(Telephony.Sms.READ, if (read) 1 else 0)
+      put(Telephony.Sms.SEEN, if (read) 1 else 0)
     }
 
     val updated =

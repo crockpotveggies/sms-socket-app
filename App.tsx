@@ -449,6 +449,48 @@ function App(): React.JSX.Element {
     [loadConversations],
   );
 
+  const markConversationUnread = useCallback(
+    async (conversation: Pick<SmsConversation, 'threadId' | 'address'>) => {
+      setConversations(current =>
+        current.map(item =>
+          item.threadId === conversation.threadId
+            ? {...item, read: false, unreadCount: Math.max(item.unreadCount, 1)}
+            : item,
+        ),
+      );
+
+      try {
+        await SmsGateway.markConversationUnread({
+          threadId: conversation.threadId,
+          address: conversation.address,
+        });
+      } catch (error) {
+        await loadConversations();
+        Alert.alert('Mark unread failed', String(error));
+      }
+    },
+    [loadConversations],
+  );
+
+  const toggleConversationReadState = useCallback(
+    async (conversation: Pick<SmsConversation, 'threadId' | 'address'>) => {
+      const currentConversation = conversations.find(
+        item => item.threadId === conversation.threadId,
+      );
+      const isRead = Boolean(
+        currentConversation?.read && (currentConversation.unreadCount ?? 0) === 0,
+      );
+
+      if (isRead) {
+        await markConversationUnread(conversation);
+        return;
+      }
+
+      await markConversationRead(conversation);
+    },
+    [conversations, markConversationRead, markConversationUnread],
+  );
+
   const deleteConversation = useCallback(
     async (conversation: Pick<SmsConversation, 'threadId' | 'address'>) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -584,7 +626,7 @@ function App(): React.JSX.Element {
                   unreadConversationCount={unreadConversationCount}
                   onToggleUnreadOnly={setUnreadOnly}
                   onOpenConversation={openConversation}
-                  onMarkConversationRead={markConversationRead}
+                  onToggleConversationReadState={toggleConversationReadState}
                   onDeleteConversation={deleteConversation}
                   onCompose={openComposer}
                   onRequestRole={requestSmsRole}
