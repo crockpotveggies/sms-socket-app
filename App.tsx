@@ -71,6 +71,7 @@ function App(): React.JSX.Element {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [refreshingMessages, setRefreshingMessages] = useState(false);
   const activeConversationRef = useRef<ScreenState>({name: 'messages'});
+  const messagingReadyRef = useRef(false);
 
   const loadGatewayStatus = useCallback(async () => {
     try {
@@ -87,6 +88,12 @@ function App(): React.JSX.Element {
   }, []);
 
   const loadConversations = useCallback(async () => {
+    if (!messagingReadyRef.current) {
+      setConversations([]);
+      setConversationsLoading(false);
+      return;
+    }
+
     try {
       const nextConversations = await SmsGateway.listConversations(100);
       setConversations(nextConversations);
@@ -101,6 +108,13 @@ function App(): React.JSX.Element {
     async (request: {threadId?: string; address?: string}, silent = false) => {
       if (!request.threadId && !request.address) {
         setMessages([]);
+        return;
+      }
+
+      if (!messagingReadyRef.current) {
+        setMessages([]);
+        setMessagesLoading(false);
+        setRefreshingMessages(false);
         return;
       }
 
@@ -130,6 +144,14 @@ function App(): React.JSX.Element {
     activeConversationRef.current = screen;
   }, [screen]);
 
+  const messagingReady = Boolean(
+    status?.smsRoleGranted && status?.gatewayPermissionsGranted,
+  );
+
+  useEffect(() => {
+    messagingReadyRef.current = messagingReady;
+  }, [messagingReady]);
+
   useEffect(() => {
     const subscription = SmsGateway.addListener(
       (nativeEvent: SmsGatewayNativeEvent) => {
@@ -143,7 +165,7 @@ function App(): React.JSX.Element {
           const event = nativeEvent.payload as GatewayEventRecord;
           setEvents(current => [event, ...current].slice(0, 50));
 
-          if (event.type.startsWith('sms.')) {
+          if (event.type.startsWith('sms.') && messagingReadyRef.current) {
             loadConversations().catch(() => undefined);
             const currentScreen = activeConversationRef.current;
             if (currentScreen.name === 'conversation') {
@@ -161,10 +183,23 @@ function App(): React.JSX.Element {
     );
 
     loadGatewayStatus().catch(() => undefined);
-    loadConversations().catch(() => undefined);
 
     return () => subscription.remove();
   }, [loadConversations, loadGatewayStatus, loadMessages]);
+
+  useEffect(() => {
+    if (!messagingReady) {
+      setConversations([]);
+      setConversationsLoading(false);
+      setMessages([]);
+      setMessagesLoading(false);
+      setRefreshingMessages(false);
+      return;
+    }
+
+    setConversationsLoading(true);
+    loadConversations().catch(() => undefined);
+  }, [loadConversations, messagingReady]);
 
   useEffect(() => {
     if (screen.name !== 'conversation') {
@@ -463,9 +498,7 @@ function App(): React.JSX.Element {
                 <MessagesHome
                   conversations={filteredConversations}
                   loading={conversationsLoading}
-                  ready={Boolean(
-                    status?.smsRoleGranted && status?.gatewayPermissionsGranted,
-                  )}
+                  ready={messagingReady}
                   searchQuery={searchQuery}
                   onChangeSearch={setSearchQuery}
                   onOpenConversation={openConversation}
