@@ -13,6 +13,7 @@ jest.mock('../src/SmsGateway', () => {
     ...actual,
     SmsGateway: {
       addListener: () => ({remove: jest.fn()}),
+      deleteConversation: jest.fn().mockResolvedValue(true),
       generateApiKey: jest.fn(),
       getConversationMessages: jest.fn().mockResolvedValue([]),
       getGatewayStatus: jest.fn().mockResolvedValue({
@@ -33,6 +34,7 @@ jest.mock('../src/SmsGateway', () => {
       }),
       listConversations: jest.fn().mockResolvedValue([]),
       listSubscriptions: jest.fn(),
+      markConversationRead: jest.fn().mockResolvedValue(true),
       openBatteryOptimizationSettings: jest.fn(),
       requestSmsRole: jest.fn(),
       sendSmsMessage: jest.fn(),

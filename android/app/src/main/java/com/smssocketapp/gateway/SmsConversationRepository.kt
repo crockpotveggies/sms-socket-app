@@ -1,6 +1,7 @@
 package com.smssocketapp.gateway
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.ContactsContract
@@ -152,6 +153,50 @@ class SmsConversationRepository(private val context: Context) {
     messages.asReversed().forEach { message -> ordered.put(message) }
     return ordered
   }
+
+  fun markConversationRead(threadId: String? = null, address: String? = null): Boolean {
+    val selectionData = selectionForConversation(threadId, address) ?: return false
+    val values = ContentValues().apply {
+      put(Telephony.Sms.READ, 1)
+      put(Telephony.Sms.SEEN, 1)
+    }
+
+    val updated =
+      context.contentResolver.update(
+        Telephony.Sms.CONTENT_URI,
+        values,
+        selectionData.first,
+        selectionData.second,
+      )
+
+    return updated > 0
+  }
+
+  fun deleteConversation(threadId: String? = null, address: String? = null): Boolean {
+    val selectionData = selectionForConversation(threadId, address) ?: return false
+    val deleted =
+      context.contentResolver.delete(
+        Telephony.Sms.CONTENT_URI,
+        selectionData.first,
+        selectionData.second,
+      )
+
+    return deleted > 0
+  }
+
+  private fun selectionForConversation(
+    threadId: String?,
+    address: String?,
+  ): Pair<String, Array<String>>? =
+    when {
+      !threadId.isNullOrBlank() -> {
+        "${Telephony.Sms.THREAD_ID} = ?" to arrayOf(threadId)
+      }
+      !address.isNullOrBlank() -> {
+        "${Telephony.Sms.ADDRESS} = ?" to arrayOf(address)
+      }
+      else -> null
+    }
 
   private fun decorateAddress(payload: JSONObject): JSONObject {
     val address = payload.optString("address")

@@ -89,6 +89,14 @@ type NativeSmsGatewayModule = {
     address?: string;
     limit?: number;
   }): Promise<SmsMessage[]>;
+  markConversationRead(request: {
+    threadId?: string;
+    address?: string;
+  }): Promise<boolean>;
+  deleteConversation(request: {
+    threadId?: string;
+    address?: string;
+  }): Promise<boolean>;
   sendSmsMessage(request: SendSmsArgs): Promise<Record<string, unknown>>;
   openBatteryOptimizationSettings(): Promise<boolean>;
   addListener(eventName: string): void;
@@ -114,6 +122,10 @@ export const SmsGateway = {
     address?: string;
     limit?: number;
   }) => SmsGatewayModule.getConversationMessages(request),
+  markConversationRead: (request: {threadId?: string; address?: string}) =>
+    SmsGatewayModule.markConversationRead(request),
+  deleteConversation: (request: {threadId?: string; address?: string}) =>
+    SmsGatewayModule.deleteConversation(request),
   sendSmsMessage: (request: SendSmsArgs) => SmsGatewayModule.sendSmsMessage(request),
   openBatteryOptimizationSettings: () =>
     SmsGatewayModule.openBatteryOptimizationSettings(),
