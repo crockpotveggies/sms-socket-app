@@ -2,6 +2,8 @@
 
 Android-only React Native SMS gateway that runs entirely on the phone. It receives SMS, sends SMS, and exposes a local WebSocket server so nearby systems can exchange SMS commands and events without any cloud relay.
 
+<img src="app_screenshot.jpeg" width="250">
+
 ## What it does
 
 - Runs a foreground Android service to keep a local WebSocket server alive in the background.
