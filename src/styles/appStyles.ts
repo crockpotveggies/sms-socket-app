@@ -396,6 +396,50 @@ export const styles = StyleSheet.create({
   messageTimestampOutgoing: {
     color: '#18425d',
   },
+  messageStatusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+  },
+  messageStatusPillIncoming: {
+    backgroundColor: '#19314c',
+    borderColor: '#2e4a69',
+  },
+  messageStatusPillOutgoing: {
+    backgroundColor: '#bde7ff',
+    borderColor: '#4aa7d8',
+  },
+  messageStatusPillFailure: {
+    backgroundColor: '#ffd5db',
+    borderColor: '#d16a7a',
+  },
+  messageStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  messageStatusTextIncoming: {
+    color: '#dcecff',
+  },
+  messageStatusTextOutgoing: {
+    color: '#114567',
+  },
+  messageStatusTextFailure: {
+    color: '#7c2031',
+  },
+  messageFailureDetail: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  messageFailureDetailIncoming: {
+    color: '#d7e7f5',
+  },
+  messageFailureDetailOutgoing: {
+    color: '#5c2031',
+  },
   composer: {
     padding: 16,
     borderTopWidth: StyleSheet.hairlineWidth,

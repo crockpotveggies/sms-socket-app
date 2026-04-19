@@ -13,6 +13,8 @@ import {
 import {
   GatewayAttachment,
   SmsMessage,
+  formatMessageDeliveryState,
+  formatMessageFailureDetail,
   formatMessageTimestamp,
   isOutgoingMessage,
 } from '../../SmsGateway';
@@ -135,40 +137,82 @@ export function ConversationScreen({
             </Text>
           </View>
         ) : (
-          messages.map(message => (
-            <View
-              key={message.id}
-              style={[
-                styles.messageBubble,
-                isOutgoingMessage(message.messageType)
-                  ? styles.messageBubbleOutgoing
-                  : styles.messageBubbleIncoming,
-              ]}>
-              {message.attachments.map(item => (
-                <View key={item.id}>
-                  {renderAttachmentPreview(item, isOutgoingMessage(message.messageType))}
-                </View>
-              ))}
-              <Text
+          messages.map(message => {
+            const outgoing = isOutgoingMessage(message.messageType);
+            const deliveryLabel = formatMessageDeliveryState(message);
+            const failureDetail = formatMessageFailureDetail(message);
+            const isFailure =
+              message.deliveryState === 'failed' || message.deliveryState === 'rejected';
+
+            return (
+              <View
+                key={message.id}
                 style={[
-                  styles.messageText,
-                  isOutgoingMessage(message.messageType)
-                    ? styles.messageTextOutgoing
-                    : styles.messageTextIncoming,
+                  styles.messageBubble,
+                  outgoing
+                    ? styles.messageBubbleOutgoing
+                    : styles.messageBubbleIncoming,
                 ]}>
-                {message.body}
-              </Text>
-              <Text
-                style={[
-                  styles.messageTimestamp,
-                  isOutgoingMessage(message.messageType)
-                    ? styles.messageTimestampOutgoing
-                    : styles.messageTimestampIncoming,
-                ]}>
-                {formatMessageTimestamp(message.timestamp)}
-              </Text>
-            </View>
-          ))
+                {message.attachments.map(item => (
+                  <View key={item.id}>
+                    {renderAttachmentPreview(item, outgoing)}
+                  </View>
+                ))}
+                <Text
+                  style={[
+                    styles.messageText,
+                    outgoing
+                      ? styles.messageTextOutgoing
+                      : styles.messageTextIncoming,
+                  ]}>
+                  {message.body}
+                </Text>
+                {deliveryLabel ? (
+                  <View
+                    style={[
+                      styles.messageStatusPill,
+                      isFailure
+                        ? styles.messageStatusPillFailure
+                        : outgoing
+                          ? styles.messageStatusPillOutgoing
+                          : styles.messageStatusPillIncoming,
+                    ]}>
+                    <Text
+                      style={[
+                        styles.messageStatusText,
+                        isFailure
+                          ? styles.messageStatusTextFailure
+                          : outgoing
+                            ? styles.messageStatusTextOutgoing
+                            : styles.messageStatusTextIncoming,
+                      ]}>
+                      {deliveryLabel}
+                    </Text>
+                  </View>
+                ) : null}
+                {failureDetail ? (
+                  <Text
+                    style={[
+                      styles.messageFailureDetail,
+                      outgoing
+                        ? styles.messageFailureDetailOutgoing
+                        : styles.messageFailureDetailIncoming,
+                    ]}>
+                    {failureDetail}
+                  </Text>
+                ) : null}
+                <Text
+                  style={[
+                    styles.messageTimestamp,
+                    outgoing
+                      ? styles.messageTimestampOutgoing
+                      : styles.messageTimestampIncoming,
+                  ]}>
+                  {formatMessageTimestamp(message.timestamp)}
+                </Text>
+              </View>
+            );
+          })
         )}
       </ScrollView>
 

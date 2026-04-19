@@ -162,7 +162,7 @@ object SmsGatewayCore {
           ),
         )
 
-    PendingMessageStore(context).put(messageId, payload)
+    PendingMessageStore(context).put(messageId, GatewayEventSanitizer.sanitizePayload(payload))
 
     val errorRef = AtomicReference<Exception?>()
     val latch = CountDownLatch(1)
@@ -266,4 +266,8 @@ object SmsGatewayCore {
         if (intent.hasExtra(EXTRA_SUBSCRIPTION_ID)) intent.getIntExtra(EXTRA_SUBSCRIPTION_ID, -1) else JSONObject.NULL,
       )
   }
+
+  fun describeMmsSendFailure(resultCode: Int): String =
+    MmsStatusSupport.fromSendResultCode(resultCode).failureReason
+      ?: "MMS send failed with Android result code $resultCode."
 }

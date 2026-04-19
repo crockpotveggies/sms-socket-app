@@ -163,4 +163,55 @@ describe('ConversationScreen', () => {
 
     expect(onChangeAddress).toHaveBeenCalledWith('+15557654321');
   });
+
+  it('renders outgoing failure and rejection status details', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <ConversationScreen
+          title="Taylor"
+          subtitle="+15551234567"
+          address="+15551234567"
+          body=""
+          attachment={null}
+          loading={false}
+          refreshing={false}
+          sending={false}
+          messages={[
+            {
+              ...baseMessage,
+              id: 'msg-failed',
+              messageType: 2,
+              deliveryState: 'failed',
+              carrierAccepted: false,
+              failureReason: 'Mobile data is disabled.',
+            },
+            {
+              ...baseMessage,
+              id: 'msg-rejected',
+              messageType: 2,
+              deliveryState: 'rejected',
+              carrierAccepted: false,
+              failureReason: 'Carrier rejected the attachment or content in this MMS.',
+            },
+          ]}
+          onBack={jest.fn()}
+          onChangeAddress={jest.fn()}
+          onChangeBody={jest.fn()}
+          onPickAttachment={jest.fn()}
+          onClearAttachment={jest.fn()}
+          onSend={jest.fn()}
+          editableAddress={false}
+        />,
+      );
+    });
+
+    const tree = JSON.stringify(renderer!.toJSON());
+
+    expect(tree).toContain('Failed before carrier handoff');
+    expect(tree).toContain('Mobile data is disabled.');
+    expect(tree).toContain('Carrier rejected this MMS');
+    expect(tree).toContain('Carrier rejected the attachment or content in this MMS.');
+  });
 });

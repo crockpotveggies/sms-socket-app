@@ -12,9 +12,18 @@ export type GatewayAttachment = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  contentRedacted?: boolean;
   base64?: string;
   previewBase64?: string;
 };
+
+export type MessageDeliveryState =
+  | 'received'
+  | 'pending'
+  | 'sent'
+  | 'delivered'
+  | 'failed'
+  | 'rejected';
 
 export type GatewayStatus = {
   enabled: boolean;
@@ -46,6 +55,10 @@ export type SmsConversation = {
   messageType: number;
   read: boolean;
   unreadCount: number;
+  status?: number | null;
+  deliveryState?: MessageDeliveryState | null;
+  carrierAccepted?: boolean | null;
+  failureReason?: string | null;
   subject?: string | null;
   hasMedia: boolean;
 };
@@ -63,6 +76,9 @@ export type SmsMessage = {
   messageType: number;
   read: boolean;
   status: number | null;
+  deliveryState?: MessageDeliveryState | null;
+  carrierAccepted?: boolean | null;
+  failureReason?: string | null;
   subject?: string | null;
   hasMedia: boolean;
   attachments: GatewayAttachment[];
@@ -247,3 +263,48 @@ export const formatConversationTimestamp = (timestamp: number): string =>
 
 export const isOutgoingMessage = (messageType: number): boolean =>
   messageType !== 1;
+
+export const formatMessageDeliveryState = (
+  message: Pick<
+    SmsMessage,
+    'messageType' | 'deliveryState' | 'carrierAccepted' | 'failureReason'
+  >,
+): string | null => {
+  if (!isOutgoingMessage(message.messageType) || !message.deliveryState) {
+    return null;
+  }
+
+  switch (message.deliveryState) {
+    case 'pending':
+      return 'Sending...';
+    case 'sent':
+      return 'Sent to carrier';
+    case 'delivered':
+      return 'Delivered';
+    case 'rejected':
+      return 'Carrier rejected this MMS';
+    case 'failed':
+      return message.carrierAccepted === false
+        ? 'Failed before carrier handoff'
+        : 'Send failed';
+    default:
+      return null;
+  }
+};
+
+export const formatMessageFailureDetail = (
+  message: Pick<
+    SmsMessage,
+    'messageType' | 'deliveryState' | 'failureReason'
+  >,
+): string | null => {
+  if (!isOutgoingMessage(message.messageType)) {
+    return null;
+  }
+  if (message.deliveryState !== 'failed' && message.deliveryState !== 'rejected') {
+    return null;
+  }
+
+  const detail = message.failureReason?.trim();
+  return detail && detail.length > 0 ? detail : null;
+};

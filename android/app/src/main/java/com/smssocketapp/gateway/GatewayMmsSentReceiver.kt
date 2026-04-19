@@ -10,6 +10,7 @@ class GatewayMmsSentReceiver : MmsSentReceiver() {
   override fun onMessageStatusUpdated(context: Context, intent: Intent, resultCode: Int) {
     val messageId = intent.getStringExtra(SmsGatewayCore.EXTRA_MESSAGE_ID) ?: return
     val pendingPayload = SmsGatewayCore.buildMmsFailurePayload(context, intent)
+    val sendResult = MmsStatusSupport.fromSendResultCode(resultCode)
 
     if (resultCode == Activity.RESULT_OK) {
       val uriString = intent.getStringExtra(EXTRA_CONTENT_URI)
@@ -25,7 +26,11 @@ class GatewayMmsSentReceiver : MmsSentReceiver() {
       "mms.outbound.failed",
       pendingPayload
         .put("errorCode", resultCode)
-        .put("stage", "sent"),
+        .put("stage", "sent")
+        .put("deliveryState", sendResult.deliveryState ?: "failed")
+        .put("failureReason", sendResult.failureReason ?: SmsGatewayCore.describeMmsSendFailure(resultCode))
+        .put("carrierAccepted", sendResult.carrierAccepted ?: JSONObject.NULL)
+        .put("status", sendResult.statusCode ?: JSONObject.NULL),
     )
     PendingMessageStore(context).remove(messageId)
   }

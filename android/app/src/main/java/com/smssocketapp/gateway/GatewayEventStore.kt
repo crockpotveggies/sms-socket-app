@@ -10,7 +10,7 @@ class GatewayEventStore(context: Context) {
 
   fun append(event: JSONObject) {
     val current = readAll()
-    current.put(event)
+    current.put(GatewayEventSanitizer.sanitizeEventRecord(event))
 
     while (current.length() > MAX_EVENTS) {
       current.remove(0)
@@ -46,8 +46,31 @@ class GatewayEventStore(context: Context) {
     return result
   }
 
-  private fun readAll(): JSONArray =
-    preferences.getString(KEY_RECENT_EVENTS, null)?.let(::JSONArray) ?: JSONArray()
+  private fun readAll(): JSONArray {
+    val stored = preferences.getString(KEY_RECENT_EVENTS, null)?.let(::JSONArray) ?: JSONArray()
+    val sanitized = JSONArray()
+    var changed = false
+
+    for (index in 0 until stored.length()) {
+      val event = stored.optJSONObject(index)
+      if (event == null) {
+        sanitized.put(stored.opt(index))
+        continue
+      }
+
+      val nextEvent = GatewayEventSanitizer.sanitizeEventRecord(event)
+      if (nextEvent.toString() != event.toString()) {
+        changed = true
+      }
+      sanitized.put(nextEvent)
+    }
+
+    if (changed) {
+      preferences.edit().putString(KEY_RECENT_EVENTS, sanitized.toString()).apply()
+    }
+
+    return sanitized
+  }
 
   companion object {
     private const val KEY_RECENT_EVENTS = "recentEvents"

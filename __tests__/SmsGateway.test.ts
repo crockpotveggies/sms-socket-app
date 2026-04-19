@@ -1,6 +1,8 @@
 import {
   GatewayStatus,
   coercePort,
+  formatMessageDeliveryState,
+  formatMessageFailureDetail,
   formatConversationTitle,
   formatServerAddresses,
   getGatewayChecklist,
@@ -64,5 +66,41 @@ describe('SmsGateway helpers', () => {
     expect(isOutgoingMessage(1)).toBe(false);
     expect(isOutgoingMessage(2)).toBe(true);
     expect(isOutgoingMessage(4)).toBe(true);
+  });
+
+  it('formats outgoing message delivery states for the UI', () => {
+    expect(
+      formatMessageDeliveryState({
+        messageType: 4,
+        deliveryState: 'pending',
+        carrierAccepted: null,
+        failureReason: null,
+      }),
+    ).toBe('Sending...');
+    expect(
+      formatMessageDeliveryState({
+        messageType: 2,
+        deliveryState: 'rejected',
+        carrierAccepted: false,
+        failureReason: 'Carrier rejected the attachment.',
+      }),
+    ).toBe('Carrier rejected this MMS');
+  });
+
+  it('only exposes failure detail for failed or rejected outgoing messages', () => {
+    expect(
+      formatMessageFailureDetail({
+        messageType: 2,
+        deliveryState: 'failed',
+        failureReason: 'Mobile data is disabled.',
+      }),
+    ).toBe('Mobile data is disabled.');
+    expect(
+      formatMessageFailureDetail({
+        messageType: 2,
+        deliveryState: 'sent',
+        failureReason: 'Should stay hidden.',
+      }),
+    ).toBeNull();
   });
 });

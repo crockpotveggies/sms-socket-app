@@ -352,16 +352,18 @@ class SmsGatewayModule(
 
     try {
       val attachment = JsonBridge.readableMapToJson(request.getMap("attachment")!!)
+      val result =
+        SmsGatewayCore.enqueueOutboundMms(
+          reactContext,
+          destination,
+          body,
+          subject,
+          attachment,
+          subscriptionId,
+        )
       promise.resolve(
         JsonBridge.toWritableMap(
-          SmsGatewayCore.enqueueOutboundMms(
-            reactContext,
-            destination,
-            body,
-            subject,
-            attachment,
-            subscriptionId,
-          ),
+          GatewayEventSanitizer.sanitizePayload(result),
         ),
       )
     } catch (error: Exception) {

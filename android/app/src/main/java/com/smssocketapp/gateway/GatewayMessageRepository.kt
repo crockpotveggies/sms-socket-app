@@ -27,6 +27,9 @@ class GatewayMessageRepository(private val context: Context) {
     val messageType: Int,
     val read: Boolean,
     val status: Int?,
+    val deliveryState: String?,
+    val carrierAccepted: Boolean?,
+    val failureReason: String?,
     val hasMedia: Boolean,
     val attachments: JSONArray,
     val rawEventType: String?,
@@ -61,6 +64,10 @@ class GatewayMessageRepository(private val context: Context) {
           .put("read", message.read)
           .put("unreadCount", unreadCounts[message.threadId] ?: 0)
           .put("subject", message.subject ?: JSONObject.NULL)
+          .put("status", message.status ?: JSONObject.NULL)
+          .put("deliveryState", message.deliveryState ?: JSONObject.NULL)
+          .put("carrierAccepted", message.carrierAccepted ?: JSONObject.NULL)
+          .put("failureReason", message.failureReason ?: JSONObject.NULL)
           .put("hasMedia", message.hasMedia),
       )
     }
@@ -250,6 +257,9 @@ class GatewayMessageRepository(private val context: Context) {
             messageType = cursor.getInt(typeIndex),
             read = cursor.getInt(readIndex) == 1,
             status = cursor.getInt(statusIndex),
+            deliveryState = smsDeliveryState(cursor.getInt(typeIndex), cursor.getInt(statusIndex)),
+            carrierAccepted = null,
+            failureReason = smsFailureReason(cursor.getInt(typeIndex), cursor.getInt(statusIndex)),
             hasMedia = false,
             attachments = MmsSupport.emptyAttachments(),
             rawEventType = null,
@@ -271,6 +281,12 @@ class GatewayMessageRepository(private val context: Context) {
         Telephony.Mms.MESSAGE_BOX,
         Telephony.Mms.READ,
         Telephony.Mms.SUBJECT,
+        Telephony.Mms.DATE_SENT,
+        Telephony.Mms.RESPONSE_STATUS,
+        Telephony.Mms.RESPONSE_TEXT,
+        Telephony.Mms.STATUS,
+        Telephony.Mms.RETRIEVE_STATUS,
+        Telephony.Mms.RETRIEVE_TEXT,
         "sub_cs",
         "m_type",
       )
@@ -288,6 +304,12 @@ class GatewayMessageRepository(private val context: Context) {
       val messageBoxIndex = cursor.getColumnIndexOrThrow(Telephony.Mms.MESSAGE_BOX)
       val readIndex = cursor.getColumnIndexOrThrow(Telephony.Mms.READ)
       val subjectIndex = cursor.getColumnIndexOrThrow(Telephony.Mms.SUBJECT)
+      val dateSentIndex = cursor.getColumnIndex(Telephony.Mms.DATE_SENT)
+      val responseStatusIndex = cursor.getColumnIndex(Telephony.Mms.RESPONSE_STATUS)
+      val responseTextIndex = cursor.getColumnIndex(Telephony.Mms.RESPONSE_TEXT)
+      val statusIndex = cursor.getColumnIndex(Telephony.Mms.STATUS)
+      val retrieveStatusIndex = cursor.getColumnIndex(Telephony.Mms.RETRIEVE_STATUS)
+      val retrieveTextIndex = cursor.getColumnIndex(Telephony.Mms.RETRIEVE_TEXT)
       val subjectCharsetIndex = cursor.getColumnIndex("sub_cs")
       val messageTypeIndex = cursor.getColumnIndex("m_type")
 
@@ -304,6 +326,21 @@ class GatewayMessageRepository(private val context: Context) {
           )
         val box = cursor.getInt(messageBoxIndex)
         val mType = if (messageTypeIndex >= 0) cursor.getInt(messageTypeIndex) else null
+        val responseStatus = nullableInt(cursor, responseStatusIndex)
+        val responseText = nullableString(cursor, responseTextIndex)
+        val status = nullableInt(cursor, statusIndex)
+        val retrieveStatus = nullableInt(cursor, retrieveStatusIndex)
+        val retrieveText = nullableString(cursor, retrieveTextIndex)
+        val statusSummary =
+          MmsStatusSupport.fromProvider(
+            messageBox = box,
+            messageType = mType,
+            responseStatus = responseStatus,
+            responseText = responseText,
+            status = status,
+            retrieveStatus = retrieveStatus,
+            retrieveText = retrieveText,
+          )
 
         messages.add(
           GatewayMessage(
@@ -316,13 +353,16 @@ class GatewayMessageRepository(private val context: Context) {
             initials = initialsFor(displayName, address),
             body = bodyAndAttachments.first,
             subject = subject,
-            timestamp = cursor.getLong(dateIndex) * 1000L,
+            timestamp = mmsTimestamp(cursor, dateIndex, dateSentIndex),
             messageType = box,
             read = cursor.getInt(readIndex) == 1,
-            status = null,
+            status = statusSummary.statusCode,
+            deliveryState = statusSummary.deliveryState,
+            carrierAccepted = statusSummary.carrierAccepted,
+            failureReason = statusSummary.failureReason,
             hasMedia = bodyAndAttachments.second.length() > 0,
             attachments = bodyAndAttachments.second,
-            rawEventType = rawMmsEventType(box, mType),
+            rawEventType = rawMmsEventType(box, mType, statusSummary),
           ),
         )
       }
@@ -475,6 +515,9 @@ class GatewayMessageRepository(private val context: Context) {
       .put("messageType", message.messageType)
       .put("read", message.read)
       .put("status", message.status ?: JSONObject.NULL)
+      .put("deliveryState", message.deliveryState ?: JSONObject.NULL)
+      .put("carrierAccepted", message.carrierAccepted ?: JSONObject.NULL)
+      .put("failureReason", message.failureReason ?: JSONObject.NULL)
       .put("subject", message.subject ?: JSONObject.NULL)
       .put("hasMedia", message.hasMedia)
       .put("attachments", message.attachments)
@@ -484,6 +527,12 @@ class GatewayMessageRepository(private val context: Context) {
       .put("subscriptionId", JSONObject.NULL)
 
   private fun conversationSnippet(message: GatewayMessage): String {
+    if (message.deliveryState == "rejected") {
+      return message.failureReason ?: "Carrier rejected the MMS"
+    }
+    if (message.deliveryState == "failed") {
+      return message.failureReason?.let { "Failed: $it" } ?: "Failed to send"
+    }
     if (message.body.isNotBlank()) {
       return message.body
     }
@@ -509,12 +558,17 @@ class GatewayMessageRepository(private val context: Context) {
         Telephony.Mms.MESSAGE_BOX_INBOX -> "mms.received"
         Telephony.Mms.MESSAGE_BOX_SENT -> "mms.outbound.sent"
         Telephony.Mms.MESSAGE_BOX_OUTBOX -> "mms.outbound.accepted"
+        Telephony.Mms.MESSAGE_BOX_FAILED -> "mms.outbound.failed"
         else -> "mms.history"
       }
     }
 
-  private fun rawMmsEventType(box: Int, mType: Int?): String? =
-    when (mType) {
+  private fun rawMmsEventType(box: Int, mType: Int?, statusSummary: MmsStatusSummary): String? {
+    if (statusSummary.deliveryState == "rejected" || statusSummary.deliveryState == "failed") {
+      return if (box == Telephony.Mms.MESSAGE_BOX_INBOX) null else "mms.outbound.failed"
+    }
+
+    return when (mType) {
       134, 136 -> "mms.outbound.delivered"
       130 -> "mms.notification"
       132 -> if (box == Telephony.Mms.MESSAGE_BOX_INBOX) "mms.received" else null
@@ -523,8 +577,40 @@ class GatewayMessageRepository(private val context: Context) {
           Telephony.Mms.MESSAGE_BOX_INBOX -> "mms.received"
           Telephony.Mms.MESSAGE_BOX_SENT -> "mms.outbound.sent"
           Telephony.Mms.MESSAGE_BOX_OUTBOX -> "mms.outbound.accepted"
+          Telephony.Mms.MESSAGE_BOX_FAILED -> "mms.outbound.failed"
           else -> null
         }
+    }
+  }
+
+  private fun mmsTimestamp(cursor: android.database.Cursor, dateIndex: Int, dateSentIndex: Int): Long {
+    val sentTimestamp =
+      if (dateSentIndex >= 0 && !cursor.isNull(dateSentIndex)) cursor.getLong(dateSentIndex) else 0L
+    val baseTimestamp =
+      if (sentTimestamp > 0) sentTimestamp else cursor.getLong(dateIndex)
+    return baseTimestamp * 1000L
+  }
+
+  private fun nullableInt(cursor: android.database.Cursor, index: Int): Int? =
+    if (index < 0 || cursor.isNull(index)) null else cursor.getInt(index)
+
+  private fun nullableString(cursor: android.database.Cursor, index: Int): String? =
+    if (index < 0 || cursor.isNull(index)) null else cursor.getString(index)
+
+  private fun smsDeliveryState(messageType: Int, status: Int?): String? =
+    when (messageType) {
+      Telephony.TextBasedSmsColumns.MESSAGE_TYPE_FAILED -> "failed"
+      Telephony.TextBasedSmsColumns.MESSAGE_TYPE_OUTBOX -> "pending"
+      Telephony.TextBasedSmsColumns.MESSAGE_TYPE_SENT ->
+        if (status != null && status >= 0) "sent" else null
+      else -> null
+    }
+
+  private fun smsFailureReason(messageType: Int, status: Int?): String? =
+    when {
+      messageType == Telephony.TextBasedSmsColumns.MESSAGE_TYPE_FAILED ->
+        "SMS send failed${status?.let { " with status $it" } ?: ""}."
+      else -> null
     }
 
   private fun lookupDisplayName(address: String): String {

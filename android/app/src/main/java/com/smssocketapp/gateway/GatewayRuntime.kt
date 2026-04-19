@@ -73,15 +73,17 @@ object GatewayRuntime {
 
   fun recordEvent(type: String, payload: JSONObject): JSONObject {
     val context = applicationContext ?: throw IllegalStateException("GatewayRuntime not initialized")
+    val sanitizedPayload = GatewayEventSanitizer.sanitizePayload(payload)
+    val timestamp = System.currentTimeMillis()
     val event =
       JSONObject()
         .put("id", UUID.randomUUID().toString())
         .put("type", type)
-        .put("timestamp", System.currentTimeMillis())
-        .put("payload", payload)
+        .put("timestamp", timestamp)
+        .put("payload", sanitizedPayload)
 
     GatewayEventStore(context).append(event)
-    server?.broadcastGatewayEvent(type, payload, event.optLong("timestamp"))
+    server?.broadcastGatewayEvent(type, payload, timestamp)
     emitReactEvent("SmsGatewayEvent", event)
     emitState()
     return event
