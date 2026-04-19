@@ -5,17 +5,26 @@ import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.provider.Telephony
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
+import com.klinker.android.send_message.Message
+import com.klinker.android.send_message.Settings
+import com.klinker.android.send_message.Transaction
 import org.json.JSONObject
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 object SmsGatewayCore {
   const val EXTRA_MESSAGE_ID = "messageId"
   const val EXTRA_DESTINATION = "destination"
   const val EXTRA_BODY = "body"
   const val EXTRA_SUBSCRIPTION_ID = "subscriptionId"
+  const val EXTRA_SUBJECT = "subject"
 
   fun handleIncomingSms(
     context: Context,
@@ -125,6 +134,83 @@ object SmsGatewayCore {
     return payload
   }
 
+  fun enqueueOutboundMms(
+    context: Context,
+    destination: String,
+    body: String,
+    subject: String?,
+    attachment: JSONObject,
+    subscriptionId: Int?,
+  ): JSONObject {
+    val messageId = UUID.randomUUID().toString()
+    val decodedAttachment = MmsSupport.decodeOutboundAttachment(attachment)
+    val payload =
+      JSONObject()
+        .put("messageId", messageId)
+        .put("destination", destination)
+        .put("body", body)
+        .put("subject", subject ?: JSONObject.NULL)
+        .put("subscriptionId", subscriptionId ?: JSONObject.NULL)
+        .put(
+          "attachment",
+          MmsSupport.encodeAttachmentPayload(
+            id = "outbound-$messageId",
+            fileName = decodedAttachment.fileName,
+            mimeType = decodedAttachment.mimeType,
+            bytes = decodedAttachment.bytes,
+            includeFullBase64 = true,
+          ),
+        )
+
+    PendingMessageStore(context).put(messageId, payload)
+
+    val errorRef = AtomicReference<Exception?>()
+    val latch = CountDownLatch(1)
+    Handler(Looper.getMainLooper()).post {
+      try {
+        val settings =
+          Settings().apply {
+            setUseSystemSending(true)
+            setGroup(false)
+            setSubscriptionId(subscriptionId)
+          }
+        val transaction = Transaction(context, settings)
+        val sentIntent =
+          Intent(context, GatewayMmsSentReceiver::class.java).apply {
+            putExtra(EXTRA_MESSAGE_ID, messageId)
+            putExtra(EXTRA_DESTINATION, destination)
+            putExtra(EXTRA_BODY, body)
+            putExtra(EXTRA_SUBJECT, subject)
+            subscriptionId?.let { putExtra(EXTRA_SUBSCRIPTION_ID, it) }
+          }
+        transaction.setExplicitBroadcastForSentMms(sentIntent)
+
+        val message = Message(body, destination).apply {
+          setSave(true)
+          if (!subject.isNullOrBlank()) {
+            setSubject(subject)
+          }
+          addMedia(decodedAttachment.bytes, decodedAttachment.mimeType, decodedAttachment.fileName)
+        }
+
+        transaction.sendNewMessage(message, Transaction.NO_THREAD_ID)
+      } catch (error: Exception) {
+        errorRef.set(error)
+      } finally {
+        latch.countDown()
+      }
+    }
+
+    latch.await(5, TimeUnit.SECONDS)
+    errorRef.get()?.let { error ->
+      PendingMessageStore(context).remove(messageId)
+      throw error
+    }
+
+    GatewayRuntime.recordEvent("mms.outbound.accepted", payload)
+    return payload
+  }
+
   fun handleSendResult(context: Context, intent: Intent, resultCode: Int) {
     val messageId = intent.getStringExtra(EXTRA_MESSAGE_ID) ?: return
     val pending = PendingMessageStore(context).get(messageId) ?: JSONObject()
@@ -166,5 +252,18 @@ object SmsGatewayCore {
     }
 
     PendingMessageStore(context).remove(messageId)
+  }
+
+  fun buildMmsFailurePayload(context: Context, intent: Intent): JSONObject {
+    val messageId = intent.getStringExtra(EXTRA_MESSAGE_ID) ?: return JSONObject()
+    val pending = PendingMessageStore(context).get(messageId) ?: JSONObject()
+    return JSONObject(pending.toString())
+      .put("destination", intent.getStringExtra(EXTRA_DESTINATION))
+      .put("body", intent.getStringExtra(EXTRA_BODY))
+      .put("subject", intent.getStringExtra(EXTRA_SUBJECT) ?: JSONObject.NULL)
+      .put(
+        "subscriptionId",
+        if (intent.hasExtra(EXTRA_SUBSCRIPTION_ID)) intent.getIntExtra(EXTRA_SUBSCRIPTION_ID, -1) else JSONObject.NULL,
+      )
   }
 }

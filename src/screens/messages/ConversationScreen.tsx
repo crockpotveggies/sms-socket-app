@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 
 import {
+  GatewayAttachment,
   SmsMessage,
   formatMessageTimestamp,
   isOutgoingMessage,
@@ -21,6 +23,7 @@ export function ConversationScreen({
   subtitle,
   address,
   body,
+  attachment,
   loading,
   refreshing,
   sending,
@@ -28,6 +31,8 @@ export function ConversationScreen({
   onBack,
   onChangeAddress,
   onChangeBody,
+  onPickAttachment,
+  onClearAttachment,
   onSend,
   editableAddress,
 }: {
@@ -35,6 +40,7 @@ export function ConversationScreen({
   subtitle: string;
   address: string;
   body: string;
+  attachment: GatewayAttachment | null;
   loading: boolean;
   refreshing: boolean;
   sending: boolean;
@@ -42,9 +48,52 @@ export function ConversationScreen({
   onBack: () => void;
   onChangeAddress: (value: string) => void;
   onChangeBody: (value: string) => void;
+  onPickAttachment: () => void;
+  onClearAttachment: () => void;
   onSend: () => void;
   editableAddress: boolean;
 }) {
+  const renderAttachmentPreview = (
+    nextAttachment: GatewayAttachment,
+    outgoing: boolean,
+  ) => {
+    const imagePayload = nextAttachment.previewBase64 ?? nextAttachment.base64;
+    const isImage = nextAttachment.mimeType.startsWith('image/') && imagePayload;
+
+    return (
+      <View
+        style={[
+          styles.attachmentCard,
+          outgoing ? styles.attachmentCardOutgoing : styles.attachmentCardIncoming,
+        ]}>
+        {isImage ? (
+          <Image
+            source={{
+              uri: `data:${nextAttachment.mimeType};base64,${imagePayload}`,
+            }}
+            style={styles.attachmentPreviewImage}
+          />
+        ) : null}
+        <Text
+          style={[
+            styles.attachmentTitle,
+            outgoing ? styles.attachmentTitleOutgoing : styles.attachmentTitleIncoming,
+          ]}>
+          {nextAttachment.fileName}
+        </Text>
+        <Text
+          style={[
+            styles.attachmentMeta,
+            outgoing ? styles.attachmentMetaOutgoing : styles.attachmentMetaIncoming,
+          ]}>
+          {nextAttachment.mimeType} -{' '}
+          {Math.max(1, Math.round(nextAttachment.sizeBytes / 1024))}
+          KB
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -82,7 +131,7 @@ export function ConversationScreen({
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No messages yet</Text>
             <Text style={styles.emptyText}>
-              Send the first SMS below to start the thread.
+              Send the first message below to start the thread.
             </Text>
           </View>
         ) : (
@@ -95,6 +144,11 @@ export function ConversationScreen({
                   ? styles.messageBubbleOutgoing
                   : styles.messageBubbleIncoming,
               ]}>
+              {message.attachments.map(item => (
+                <View key={item.id}>
+                  {renderAttachmentPreview(item, isOutgoingMessage(message.messageType))}
+                </View>
+              ))}
               <Text
                 style={[
                   styles.messageText,
@@ -119,20 +173,40 @@ export function ConversationScreen({
       </ScrollView>
 
       <View style={styles.composer}>
-        <TextInput
-          value={body}
-          onChangeText={onChangeBody}
-          placeholder="Write an SMS"
-          placeholderTextColor="#6f8194"
-          multiline
-          style={styles.composerInput}
-        />
-        <Pressable
-          accessibilityRole="button"
-          onPress={onSend}
-          style={[styles.sendButton, sending ? styles.sendButtonDisabled : null]}>
-          <Text style={styles.sendButtonText}>{sending ? '...' : 'Send'}</Text>
-        </Pressable>
+        <View style={styles.composerStack}>
+          {attachment ? (
+            <View style={styles.composerAttachmentWrap}>
+              {renderAttachmentPreview(attachment, false)}
+              <Pressable
+                onPress={onClearAttachment}
+                style={styles.attachmentRemoveButton}>
+                <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <View style={styles.composerRow}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onPickAttachment}
+              style={styles.attachButton}>
+              <Text style={styles.attachButtonText}>Attach</Text>
+            </Pressable>
+            <TextInput
+              value={body}
+              onChangeText={onChangeBody}
+              placeholder={attachment ? 'Add a caption' : 'Write an SMS or MMS'}
+              placeholderTextColor="#6f8194"
+              multiline
+              style={styles.composerInput}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={onSend}
+              style={[styles.sendButton, sending ? styles.sendButtonDisabled : null]}>
+              <Text style={styles.sendButtonText}>{sending ? '...' : 'Send'}</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );

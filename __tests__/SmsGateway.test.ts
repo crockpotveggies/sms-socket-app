@@ -1,8 +1,10 @@
 import {
   GatewayStatus,
   coercePort,
+  formatConversationTitle,
   formatServerAddresses,
   getGatewayChecklist,
+  isOutgoingMessage,
 } from '../src/SmsGateway';
 
 const baseStatus: GatewayStatus = {
@@ -42,5 +44,25 @@ describe('SmsGateway helpers', () => {
       {label: 'Battery optimization ignored', ready: false},
       {label: 'API key configured', ready: true},
     ]);
+  });
+
+  it('prefers display name when formatting conversation titles', () => {
+    expect(
+      formatConversationTitle({
+        displayName: 'Sam Carter',
+        address: '+15551234567',
+        threadId: '7',
+      }),
+    ).toBe('Sam Carter');
+  });
+
+  it('falls back to thread id when no address or display name exist', () => {
+    expect(formatConversationTitle({threadId: '42'})).toBe('Thread 42');
+  });
+
+  it('treats non-inbox message types as outgoing for sms and mms shapes', () => {
+    expect(isOutgoingMessage(1)).toBe(false);
+    expect(isOutgoingMessage(2)).toBe(true);
+    expect(isOutgoingMessage(4)).toBe(true);
   });
 });

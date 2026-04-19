@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
+import mimetypes
+from pathlib import Path
 import shlex
 from datetime import datetime, timezone
 from typing import Any
@@ -116,6 +119,34 @@ class SmsGatewayTui:
             response = await self._client.send_sms(destination, body, subscription_id)
             self._print_response("sendSms", response)
             return False
+        if command == "sendmms":
+            self._require_args(
+                args,
+                2,
+                "sendmms <phone> <file-path> [message] [subscription-id]",
+            )
+            destination = args[0]
+            attachment = self._load_attachment(args[1])
+            if len(args) > 3:
+                body = " ".join(args[2:-1])
+                try:
+                    subscription_id = int(args[-1])
+                except ValueError:
+                    body = " ".join(args[2:])
+                    subscription_id = None
+            elif len(args) == 3:
+                try:
+                    subscription_id = int(args[2])
+                    body = None
+                except ValueError:
+                    body = args[2]
+                    subscription_id = None
+            else:
+                body = None
+                subscription_id = None
+            response = await self._client.send_mms(destination, attachment, body, subscription_id)
+            self._print_response("sendMms", response)
+            return False
 
         raise ValueError(f"Unknown command '{command}'. Try 'help'.")
 
@@ -130,7 +161,9 @@ class SmsGatewayTui:
     def _print_banner(self) -> None:
         print(f"{self._config.title} ({self._config.version})")
         print(f"Default URL: {self._url}")
-        print("Commands: connect, auth, send, history, state, subscriptions, help, clear, quit")
+        print(
+            "Commands: connect, auth, send, sendmms, history, state, subscriptions, help, clear, quit"
+        )
 
     def _print_help(self) -> None:
         print("Available commands:")
@@ -138,6 +171,8 @@ class SmsGatewayTui:
         print("  auth <api-key>             Send AsyncAPI authenticate")
         print("  send <phone> <message> [subscription-id]")
         print("                             Send AsyncAPI sendSms")
+        print("  sendmms <phone> <file-path> [message] [subscription-id]")
+        print("                             Send AsyncAPI sendMms")
         print("  history [since-ms] [limit] Request AsyncAPI rehydrate history")
         print("  state                      Send AsyncAPI getGatewayState")
         print("  subscriptions              Send AsyncAPI listSubscriptions")
@@ -160,12 +195,33 @@ class SmsGatewayTui:
             payload = event.get("payload", {})
             address = payload.get("address", "-")
             body = payload.get("body", "")
-            print(f"  {timestamp} | {event_type} | {address} | {body}")
+            attachments = payload.get("attachments", [])
+            media_note = ""
+            if isinstance(attachments, list) and attachments:
+                media_note = f" | attachments={len(attachments)}"
+            print(f"  {timestamp} | {event_type} | {address} | {body}{media_note}")
 
     @staticmethod
     def _require_args(args: list[str], minimum: int, usage: str) -> None:
         if len(args) < minimum:
             raise ValueError(f"Usage: {usage}")
+
+    @staticmethod
+    def _load_attachment(path_value: str) -> dict[str, Any]:
+        path = Path(path_value).expanduser().resolve()
+        if not path.exists():
+            raise ValueError(f"Attachment not found: {path}")
+
+        mime_type, _ = mimetypes.guess_type(path.name)
+        if not mime_type:
+            raise ValueError(f"Unable to infer mime type for: {path.name}")
+
+        return {
+            "fileName": path.name,
+            "mimeType": mime_type,
+            "base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "sizeBytes": path.stat().st_size,
+        }
 
 
 async def _async_main(url: str | None = None) -> int:

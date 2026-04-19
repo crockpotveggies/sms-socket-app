@@ -56,6 +56,31 @@ class AsyncApiConfigTests(unittest.TestCase):
                     properties:
                       type:
                         const: sms.outbound.failed
+                MmsReceived:
+                  payload:
+                    properties:
+                      type:
+                        const: mms.received
+                MmsOutboundAccepted:
+                  payload:
+                    properties:
+                      type:
+                        const: mms.outbound.accepted
+                MmsOutboundSent:
+                  payload:
+                    properties:
+                      type:
+                        const: mms.outbound.sent
+                MmsOutboundDelivered:
+                  payload:
+                    properties:
+                      type:
+                        const: mms.outbound.delivered
+                MmsOutboundFailed:
+                  payload:
+                    properties:
+                      type:
+                        const: mms.outbound.failed
                 GatewayState:
                   payload:
                     properties:
@@ -73,7 +98,9 @@ class AsyncApiConfigTests(unittest.TestCase):
         self.assertEqual(config.version, "1.2.3")
         self.assertEqual(config.default_url, "ws://10.0.0.5:9000/")
         self.assertIn("sendSms", config.commands)
+        self.assertIn("sendMms", config.commands)
         self.assertIn("gateway.state", config.event_types)
+        self.assertIn("mms.outbound.sent", config.event_types)
 
 
 if __name__ == "__main__":

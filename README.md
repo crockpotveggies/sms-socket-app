@@ -1,6 +1,6 @@
 # SMS Socket App
 
-Android-only React Native SMS gateway that runs entirely on the phone. It receives SMS, sends SMS, and exposes a local WebSocket server so nearby systems can exchange SMS commands and events without any cloud relay.
+Android-only React Native SMS/MMS gateway that runs entirely on the phone. It receives SMS and MMS, sends SMS and MMS, and exposes a local WebSocket server so nearby systems can exchange messaging commands and events without any cloud relay.
 
 <img src="app_screenshot.jpeg" width="250">
 
@@ -8,9 +8,10 @@ Android-only React Native SMS gateway that runs entirely on the phone. It receiv
 
 - Runs a foreground Android service to keep a local WebSocket server alive in the background.
 - Requests the default SMS role so the app can reliably send, receive, and persist SMS traffic.
-- Streams inbound SMS and outbound delivery events over WebSocket.
+- Streams inbound SMS/MMS and outbound delivery events over WebSocket.
 - Supports API-key authenticated local clients on the same LAN.
 - Restarts after reboot when the gateway was previously enabled.
+- Supports one outbound MMS attachment per message using inline base64 over the websocket API.
 
 ## Project layout
 
@@ -36,8 +37,8 @@ The server is local and cleartext by default. Typical message flow:
 
 1. Client connects to `ws://<phone-ip>:8787`.
 2. Client authenticates with `{"type":"authenticate","auth":"<api-key>"}`.
-3. Client sends commands like `sendSms`, `rehydrate`, `getGatewayState`, `listSubscriptions`, or `ack`.
-4. Server pushes events such as `sms.received`, `sms.outbound.sent`, `sms.outbound.delivered`, and `gateway.state`.
+3. Client sends commands like `sendSms`, `sendMms`, `rehydrate`, `getGatewayState`, `listSubscriptions`, or `ack`.
+4. Server pushes events such as `sms.received`, `mms.received`, `sms.outbound.sent`, `mms.outbound.sent`, and `gateway.state`.
 
 See [docs/asyncapi.yml](/C:/Users/justi/Projects/sms-socket-app/docs/asyncapi.yml) for the exact wire shape.
 
@@ -74,6 +75,7 @@ A websocket-focused Python TUI lives under [`tools/dev`](/C:/Users/justi/Project
 
 - authenticating with the API key
 - sending SMS with `sendSms`
+- sending MMS with `sendMms`
 - requesting history with `rehydrate`
 - checking gateway state and SIM subscriptions
 
@@ -109,6 +111,7 @@ auth abc123
 state
 subscriptions
 send +15551234567 "hello from the terminal"
+sendmms +15551234567 .\photo.jpg "caption from the terminal"
 history 0 20
 ```
 
@@ -116,6 +119,9 @@ The TUI prints websocket events as they arrive, so inbound SMS and outbound deli
 
 ## Limitations
 
-- MMS delivery broadcasts are detected, but full MMS parsing is not implemented in this first pass.
+- Outbound MMS in v1 supports one attachment plus an optional text body.
+- Supported outbound attachment MIME families are `image/*`, `video/*`, `audio/*`, and `application/pdf`.
+- The React Native composer compresses oversized picked images where possible and rejects non-image files over 1 MB.
+- Group MMS is supported for inbound threads and websocket events, but outbound compose remains single-recipient in this first pass.
 - TLS is intentionally not bundled into the on-device server. If you need encryption beyond a trusted LAN, terminate TLS elsewhere.
 - Android background behavior still depends on OEM battery management. The foreground service and reboot recovery do the heavy lifting, but some vendors remain committed to chaos.

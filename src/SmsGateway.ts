@@ -7,6 +7,15 @@ export type GatewayEventRecord = {
   payload: Record<string, unknown>;
 };
 
+export type GatewayAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  base64?: string;
+  previewBase64?: string;
+};
+
 export type GatewayStatus = {
   enabled: boolean;
   running: boolean;
@@ -26,8 +35,10 @@ export type GatewayStatus = {
 
 export type SmsConversation = {
   id: string;
+  kind: 'sms' | 'mms';
   threadId: string;
   address: string;
+  participants: string[];
   displayName: string;
   initials: string;
   snippet: string;
@@ -35,19 +46,26 @@ export type SmsConversation = {
   messageType: number;
   read: boolean;
   unreadCount: number;
+  subject?: string | null;
+  hasMedia: boolean;
 };
 
 export type SmsMessage = {
   id: string;
+  kind: 'sms' | 'mms';
   threadId: string;
   address: string;
+  participants: string[];
   displayName: string;
   initials: string;
   body: string;
   timestamp: number;
   messageType: number;
   read: boolean;
-  status: number;
+  status: number | null;
+  subject?: string | null;
+  hasMedia: boolean;
+  attachments: GatewayAttachment[];
 };
 
 export type SmsGatewayNativeEvent =
@@ -76,6 +94,14 @@ type SendSmsArgs = {
   subscriptionId?: number;
 };
 
+type SendMmsArgs = {
+  destination: string;
+  body?: string;
+  subject?: string;
+  subscriptionId?: number;
+  attachment: GatewayAttachment;
+};
+
 type NativeSmsGatewayModule = {
   requestSmsRole(): Promise<boolean>;
   getGatewayStatus(): Promise<GatewayStatus>;
@@ -102,6 +128,8 @@ type NativeSmsGatewayModule = {
     address?: string;
   }): Promise<boolean>;
   sendSmsMessage(request: SendSmsArgs): Promise<Record<string, unknown>>;
+  sendMmsMessage(request: SendMmsArgs): Promise<Record<string, unknown>>;
+  pickMmsAttachment(): Promise<GatewayAttachment>;
   openBatteryOptimizationSettings(): Promise<boolean>;
   addListener(eventName: string): void;
   removeListeners(count: number): void;
@@ -133,6 +161,8 @@ export const SmsGateway = {
   deleteConversation: (request: {threadId?: string; address?: string}) =>
     SmsGatewayModule.deleteConversation(request),
   sendSmsMessage: (request: SendSmsArgs) => SmsGatewayModule.sendSmsMessage(request),
+  sendMmsMessage: (request: SendMmsArgs) => SmsGatewayModule.sendMmsMessage(request),
+  pickMmsAttachment: () => SmsGatewayModule.pickMmsAttachment(),
   openBatteryOptimizationSettings: () =>
     SmsGatewayModule.openBatteryOptimizationSettings(),
   addListener: (listener: (event: SmsGatewayNativeEvent) => void): EmitterSubscription => {

@@ -10,6 +10,7 @@ object GatewayPermissions {
   private val runtimePermissions =
     listOf(
       Manifest.permission.READ_SMS,
+      Manifest.permission.RECEIVE_MMS,
       Manifest.permission.RECEIVE_SMS,
       Manifest.permission.SEND_SMS,
       Manifest.permission.READ_PHONE_STATE,

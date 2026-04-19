@@ -22,6 +22,7 @@ class SmsGatewayModule(
   private val reactContext: ReactApplicationContext,
 ) : ReactContextBaseJavaModule(reactContext) {
   private var pendingRolePromise: Promise? = null
+  private var pendingAttachmentPromise: Promise? = null
 
   private val activityEventListener: ActivityEventListener =
     object : BaseActivityEventListener() {
@@ -31,14 +32,35 @@ class SmsGatewayModule(
         resultCode: Int,
         data: Intent?,
       ) {
-        if (requestCode != REQUEST_SMS_ROLE) {
+        if (requestCode == REQUEST_SMS_ROLE) {
+          val granted = GatewayStatusFactory.isDefaultSmsApp(reactContext)
+          pendingRolePromise?.resolve(granted)
+          pendingRolePromise = null
+          GatewayRuntime.emitState()
           return
         }
 
-        val granted = GatewayStatusFactory.isDefaultSmsApp(reactContext)
-        pendingRolePromise?.resolve(granted)
-        pendingRolePromise = null
-        GatewayRuntime.emitState()
+        if (requestCode == REQUEST_ATTACHMENT_PICK) {
+          val promise = pendingAttachmentPromise
+          pendingAttachmentPromise = null
+
+          if (promise == null) {
+            return
+          }
+
+          if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            promise.reject("ATTACHMENT_CANCELLED", "Attachment picker was cancelled.")
+            return
+          }
+
+          try {
+            promise.resolve(
+              JsonBridge.toWritableMap(MmsSupport.pickAttachmentFromUri(reactContext, data.data!!)),
+            )
+          } catch (error: Exception) {
+            promise.reject("ATTACHMENT_PICK_FAILED", error.message, error)
+          }
+        }
       }
     }
 
@@ -295,6 +317,83 @@ class SmsGatewayModule(
   }
 
   @ReactMethod
+  fun sendMmsMessage(request: ReadableMap, promise: Promise) {
+    if (!GatewayStatusFactory.isDefaultSmsApp(reactContext)) {
+      promise.reject(
+        "ROLE_SMS_REQUIRED",
+        "App must be the default SMS handler before sending MMS messages.",
+      )
+      return
+    }
+    if (!GatewayPermissions.allGranted(reactContext)) {
+      promise.reject(
+        "SMS_PERMISSIONS_REQUIRED",
+        "SMS, receive, send, and phone-state permissions are required before sending MMS messages.",
+      )
+      return
+    }
+
+    val destination = request.getString("destination")?.trim().orEmpty()
+    val body =
+      if (request.hasKey("body")) request.getString("body")?.trim().orEmpty() else ""
+    val subject =
+      if (request.hasKey("subject")) request.getString("subject")?.trim() else null
+    if (destination.isBlank()) {
+      promise.reject("INVALID_MMS", "destination is required.")
+      return
+    }
+    if (!request.hasKey("attachment")) {
+      promise.reject("INVALID_MMS", "attachment is required.")
+      return
+    }
+
+    val subscriptionId =
+      if (request.hasKey("subscriptionId")) request.getInt("subscriptionId") else null
+
+    try {
+      val attachment = JsonBridge.readableMapToJson(request.getMap("attachment")!!)
+      promise.resolve(
+        JsonBridge.toWritableMap(
+          SmsGatewayCore.enqueueOutboundMms(
+            reactContext,
+            destination,
+            body,
+            subject,
+            attachment,
+            subscriptionId,
+          ),
+        ),
+      )
+    } catch (error: Exception) {
+      promise.reject("MMS_SEND_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun pickMmsAttachment(promise: Promise) {
+    val activity = reactApplicationContext.currentActivity
+    if (activity == null) {
+      promise.reject("NO_ACTIVITY", "An activity is required to pick an attachment.")
+      return
+    }
+
+    pendingAttachmentPromise?.reject(
+      "ATTACHMENT_IN_PROGRESS",
+      "Another attachment picker request is already active.",
+    )
+    pendingAttachmentPromise = promise
+
+    val intent =
+      Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = "*/*"
+        putExtra(Intent.EXTRA_MIME_TYPES, MmsSupport.supportedMimeTypes())
+      }
+
+    activity.startActivityForResult(intent, REQUEST_ATTACHMENT_PICK)
+  }
+
+  @ReactMethod
   fun openBatteryOptimizationSettings(promise: Promise) {
     val powerManager = reactContext.getSystemService(PowerManager::class.java)
     if (powerManager.isIgnoringBatteryOptimizations(reactContext.packageName)) {
@@ -320,5 +419,6 @@ class SmsGatewayModule(
   companion object {
     private const val TAG = "SmsGatewayModule"
     private const val REQUEST_SMS_ROLE = 8788
+    private const val REQUEST_ATTACHMENT_PICK = 8789
   }
 }

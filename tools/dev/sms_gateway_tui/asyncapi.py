@@ -60,6 +60,7 @@ def load_asyncapi_config(spec_path: Path | None = None) -> AsyncApiConfig:
         "listSubscriptions": AsyncApiCommand("listSubscriptions", "List SIM subscriptions."),
         "rehydrate": AsyncApiCommand("rehydrate", "Request message history since a timestamp."),
         "sendSms": AsyncApiCommand("sendSms", "Send an outbound SMS."),
+        "sendMms": AsyncApiCommand("sendMms", "Send an outbound MMS."),
         "ack": AsyncApiCommand("ack", "Acknowledge an event."),
     }
 
@@ -72,6 +73,11 @@ def load_asyncapi_config(spec_path: Path | None = None) -> AsyncApiConfig:
             "SmsOutboundSent",
             "SmsOutboundDelivered",
             "SmsOutboundFailed",
+            "MmsReceived",
+            "MmsOutboundAccepted",
+            "MmsOutboundSent",
+            "MmsOutboundDelivered",
+            "MmsOutboundFailed",
             "GatewayState",
         )
     )

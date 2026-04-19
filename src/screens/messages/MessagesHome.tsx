@@ -79,7 +79,7 @@ export function MessagesHome({
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No conversations yet</Text>
             <Text style={styles.emptyText}>
-              Start a new SMS with the plus button and it will show up here.
+              Start a new message with the plus button and it will show up here.
             </Text>
           </View>
         ) : (

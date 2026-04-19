@@ -109,5 +109,17 @@
         android:name=".gateway.SmsDeliveredReceiver"
         android:enabled="true"
         android:exported="false" />
+
+      <receiver
+        android:name=".gateway.GatewayMmsSentReceiver"
+        android:enabled="true"
+        android:exported="false"
+        android:taskAffinity="com.klinker.android.messaging.MMS_SENT" />
+
+      <provider
+        android:name=".gateway.GatewayMmsFileProvider"
+        android:authorities="${applicationId}.MmsFileProvider"
+        android:exported="false"
+        android:grantUriPermissions="true" />
     </application>
 </manifest>

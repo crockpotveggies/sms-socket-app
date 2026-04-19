@@ -1,6 +1,6 @@
-# SMS Gateway Dev Console
+# SMS/MMS Gateway Dev Console
 
-Python TUI for the local SMS gateway websocket defined in [`docs/asyncapi.yml`](/C:/Users/justi/Projects/sms-socket-app/docs/asyncapi.yml).
+Python TUI for the local SMS/MMS gateway websocket defined in [`docs/asyncapi.yml`](/C:/Users/justi/Projects/sms-socket-app/docs/asyncapi.yml).
 
 ## What It Does
 
@@ -8,9 +8,9 @@ The TUI is a small operator console for the Android SMS gateway. It connects ove
 
 Main use cases:
 
-- send outbound SMS messages from a terminal
+- send outbound SMS and MMS messages from a terminal
 - inspect gateway health and active SIM subscriptions
-- request historical SMS events with `rehydrate`
+- request historical SMS/MMS events with `rehydrate`
 - watch inbound and outbound events in real time
 
 ## Requirements
@@ -57,6 +57,7 @@ auth abc123
 state
 subscriptions
 send +15551234567 "hello from the terminal"
+sendmms +15551234567 .\photo.jpg "hello with media"
 history 0 20
 ```
 
@@ -65,6 +66,7 @@ history 0 20
 - `connect [ws-url]`
 - `auth <api-key>`
 - `send <phone> <message> [subscription-id]`
+- `sendmms <phone> <file-path> [message] [subscription-id]`
 - `history [since-ms] [limit]`
 - `state`
 - `subscriptions`
@@ -139,6 +141,24 @@ Notes:
 - `limit` defaults to `100`
 - the Android gateway bounds history requests internally
 
+### `sendmms <phone> <file-path> [message] [subscription-id]`
+
+Reads a local file, base64-encodes it, infers the MIME type from the filename, and sends AsyncAPI `sendMms`.
+
+Examples:
+
+```text
+sendmms +15551234567 .\photo.jpg
+sendmms +15551234567 .\photo.jpg "caption from the console"
+sendmms +15551234567 .\clip.mp4 "use SIM 2" 2
+```
+
+Notes:
+
+- v1 supports one attachment per outbound MMS
+- supported MIME families are `image/*`, `video/*`, `audio/*`, and `application/pdf`
+- the local file must be small enough for the gateway's 1 MB attachment cap after any normalization
+
 ### `clear`
 
 Clears the terminal and redraws the TUI banner.
@@ -156,7 +176,7 @@ Closes the TUI session.
 The console displays two kinds of output:
 
 - command responses, which come back as AsyncAPI `response` messages
-- server-pushed events such as `sms.received`, `sms.outbound.accepted`, `sms.outbound.sent`, `sms.outbound.delivered`, `sms.outbound.failed`, and `gateway.state`
+- server-pushed events such as `sms.received`, `mms.received`, `sms.outbound.accepted`, `mms.outbound.sent`, `mms.outbound.delivered`, `sms.outbound.failed`, and `gateway.state`
 
 That means you can leave the console open after sending a message and watch delivery updates arrive without polling. For once, the websocket is doing exactly what it was hired to do.
 
@@ -165,6 +185,7 @@ That means you can leave the console open after sending a message and watch deli
 - If `auth` fails, verify the API key shown in the Android app.
 - If `connect` fails, confirm the phone and workstation are on the same LAN and the gateway is running.
 - If `send` fails with an authorization or validation error, authenticate first and make sure both destination and message body are non-empty.
+- If `sendmms` fails, verify the file path exists locally, the file extension resolves to a supported MIME type, and the attachment stays within the gateway size limit.
 - If `history` is empty, try `history 0 100` to request the earliest available events.
 - If a device has multiple SIMs, run `subscriptions` and pass the correct `subscription-id` to `send`.
 

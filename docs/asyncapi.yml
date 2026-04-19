@@ -1,9 +1,10 @@
 asyncapi: 3.0.0
 info:
   title: SMS Socket App Gateway
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Local-only WebSocket API exposed by the Android foreground gateway service.
+    SMS behavior remains backward compatible while MMS is added as an additive feature.
 servers:
   localGateway:
     host: "{phoneIp}:8787"
@@ -26,6 +27,8 @@ channels:
         $ref: "#/components/messages/Rehydrate"
       sendSms:
         $ref: "#/components/messages/SendSms"
+      sendMms:
+        $ref: "#/components/messages/SendMms"
       ack:
         $ref: "#/components/messages/Ack"
       response:
@@ -40,6 +43,16 @@ channels:
         $ref: "#/components/messages/SmsOutboundDelivered"
       smsOutboundFailed:
         $ref: "#/components/messages/SmsOutboundFailed"
+      mmsReceived:
+        $ref: "#/components/messages/MmsReceived"
+      mmsOutboundAccepted:
+        $ref: "#/components/messages/MmsOutboundAccepted"
+      mmsOutboundSent:
+        $ref: "#/components/messages/MmsOutboundSent"
+      mmsOutboundDelivered:
+        $ref: "#/components/messages/MmsOutboundDelivered"
+      mmsOutboundFailed:
+        $ref: "#/components/messages/MmsOutboundFailed"
       gatewayState:
         $ref: "#/components/messages/GatewayState"
 operations:
@@ -58,6 +71,7 @@ operations:
       - $ref: "#/channels/gateway/messages/listSubscriptions"
       - $ref: "#/channels/gateway/messages/rehydrate"
       - $ref: "#/channels/gateway/messages/sendSms"
+      - $ref: "#/channels/gateway/messages/sendMms"
       - $ref: "#/channels/gateway/messages/ack"
   receiveGatewayEvents:
     action: receive
@@ -70,6 +84,11 @@ operations:
       - $ref: "#/channels/gateway/messages/smsOutboundSent"
       - $ref: "#/channels/gateway/messages/smsOutboundDelivered"
       - $ref: "#/channels/gateway/messages/smsOutboundFailed"
+      - $ref: "#/channels/gateway/messages/mmsReceived"
+      - $ref: "#/channels/gateway/messages/mmsOutboundAccepted"
+      - $ref: "#/channels/gateway/messages/mmsOutboundSent"
+      - $ref: "#/channels/gateway/messages/mmsOutboundDelivered"
+      - $ref: "#/channels/gateway/messages/mmsOutboundFailed"
       - $ref: "#/channels/gateway/messages/gatewayState"
 components:
   schemas:
@@ -97,6 +116,32 @@ components:
             - "null"
       required:
         - type
+    AttachmentPayload:
+      type: object
+      properties:
+        id:
+          type:
+            - string
+            - "null"
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type:
+            - integer
+            - "null"
+        base64:
+          type:
+            - string
+            - "null"
+        previewBase64:
+          type:
+            - string
+            - "null"
+      required:
+        - fileName
+        - mimeType
     SmsPayload:
       type: object
       properties:
@@ -111,6 +156,28 @@ components:
       required:
         - destination
         - body
+    MmsPayload:
+      type: object
+      properties:
+        destination:
+          type: string
+        body:
+          type:
+            - string
+            - "null"
+        subject:
+          type:
+            - string
+            - "null"
+        subscriptionId:
+          type:
+            - integer
+            - "null"
+        attachment:
+          $ref: "#/components/schemas/AttachmentPayload"
+      required:
+        - destination
+        - attachment
     RehydratePayload:
       type: object
       properties:
@@ -121,6 +188,91 @@ components:
           type: integer
       required:
         - since
+    MessageRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [sms, mms]
+        threadId:
+          type: string
+        address:
+          type: string
+        participants:
+          type: array
+          items:
+            type: string
+        displayName:
+          type: string
+        initials:
+          type: string
+        body:
+          type: string
+        subject:
+          type:
+            - string
+            - "null"
+        timestamp:
+          type: integer
+          format: int64
+        messageType:
+          type: integer
+        read:
+          type: boolean
+        status:
+          type:
+            - integer
+            - "null"
+        hasMedia:
+          type: boolean
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachmentPayload"
+        subscriptionId:
+          type:
+            - integer
+            - "null"
+      required:
+        - id
+        - kind
+        - threadId
+        - address
+        - participants
+        - displayName
+        - initials
+        - body
+        - timestamp
+        - messageType
+        - read
+        - hasMedia
+        - attachments
+    HistoryResponsePayload:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+              timestamp:
+                type: integer
+                format: int64
+              payload:
+                $ref: "#/components/schemas/MessageRecord"
+            required:
+              - id
+              - type
+              - timestamp
+              - payload
+      required:
+        - events
   messages:
     Authenticate:
       payload:
@@ -166,6 +318,16 @@ components:
                 const: sendSms
               payload:
                 $ref: "#/components/schemas/SmsPayload"
+    SendMms:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: sendMms
+              payload:
+                $ref: "#/components/schemas/MmsPayload"
     Ack:
       payload:
         allOf:
@@ -193,6 +355,7 @@ components:
           - type
           - ok
           - timestamp
+          - payload
     SmsReceived:
       payload:
         type: object
@@ -203,11 +366,8 @@ components:
             type: integer
             format: int64
           payload:
-            type: object
-        required:
-          - type
-          - timestamp
-          - payload
+            $ref: "#/components/schemas/MessageRecord"
+        required: [type, timestamp, payload]
     SmsOutboundAccepted:
       payload:
         type: object
@@ -219,10 +379,7 @@ components:
             format: int64
           payload:
             type: object
-        required:
-          - type
-          - timestamp
-          - payload
+        required: [type, timestamp, payload]
     SmsOutboundSent:
       payload:
         type: object
@@ -234,10 +391,7 @@ components:
             format: int64
           payload:
             type: object
-        required:
-          - type
-          - timestamp
-          - payload
+        required: [type, timestamp, payload]
     SmsOutboundDelivered:
       payload:
         type: object
@@ -249,10 +403,7 @@ components:
             format: int64
           payload:
             type: object
-        required:
-          - type
-          - timestamp
-          - payload
+        required: [type, timestamp, payload]
     SmsOutboundFailed:
       payload:
         type: object
@@ -264,10 +415,67 @@ components:
             format: int64
           payload:
             type: object
-        required:
-          - type
-          - timestamp
-          - payload
+        required: [type, timestamp, payload]
+    MmsReceived:
+      payload:
+        type: object
+        properties:
+          type:
+            const: mms.received
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/MessageRecord"
+        required: [type, timestamp, payload]
+    MmsOutboundAccepted:
+      payload:
+        type: object
+        properties:
+          type:
+            const: mms.outbound.accepted
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required: [type, timestamp, payload]
+    MmsOutboundSent:
+      payload:
+        type: object
+        properties:
+          type:
+            const: mms.outbound.sent
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/MessageRecord"
+        required: [type, timestamp, payload]
+    MmsOutboundDelivered:
+      payload:
+        type: object
+        properties:
+          type:
+            const: mms.outbound.delivered
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/MessageRecord"
+        required: [type, timestamp, payload]
+    MmsOutboundFailed:
+      payload:
+        type: object
+        properties:
+          type:
+            const: mms.outbound.failed
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            type: object
+        required: [type, timestamp, payload]
     GatewayState:
       payload:
         type: object
@@ -279,7 +487,4 @@ components:
             format: int64
           payload:
             type: object
-        required:
-          - type
-          - timestamp
-          - payload
+        required: [type, timestamp, payload]

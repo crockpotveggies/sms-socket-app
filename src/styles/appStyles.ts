@@ -397,13 +397,21 @@ export const styles = StyleSheet.create({
     color: '#18425d',
   },
   composer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
     padding: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#22344d',
     backgroundColor: '#07101d',
+  },
+  composerStack: {
+    gap: 12,
+  },
+  composerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  composerAttachmentWrap: {
+    gap: 10,
   },
   composerInput: {
     flex: 1,
@@ -418,6 +426,18 @@ export const styles = StyleSheet.create({
     paddingVertical: 14,
     textAlignVertical: 'top',
   },
+  attachButton: {
+    backgroundColor: '#182739',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 15,
+    borderWidth: 1,
+    borderColor: '#35506f',
+  },
+  attachButtonText: {
+    color: '#dfe8f0',
+    fontWeight: '800',
+  },
   sendButton: {
     backgroundColor: '#79d2ff',
     borderRadius: 18,
@@ -430,6 +450,57 @@ export const styles = StyleSheet.create({
   sendButtonText: {
     color: '#08111d',
     fontWeight: '800',
+  },
+  attachmentCard: {
+    borderRadius: 16,
+    padding: 10,
+    gap: 8,
+    borderWidth: 1,
+  },
+  attachmentCardIncoming: {
+    backgroundColor: '#0d1726',
+    borderColor: '#22344d',
+  },
+  attachmentCardOutgoing: {
+    backgroundColor: '#bfe8ff',
+    borderColor: '#79d2ff',
+  },
+  attachmentPreviewImage: {
+    width: 180,
+    height: 140,
+    borderRadius: 12,
+    backgroundColor: '#09111b',
+  },
+  attachmentTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  attachmentTitleIncoming: {
+    color: '#f0f5fb',
+  },
+  attachmentTitleOutgoing: {
+    color: '#08111d',
+  },
+  attachmentMeta: {
+    fontSize: 12,
+  },
+  attachmentMetaIncoming: {
+    color: '#9fb0c2',
+  },
+  attachmentMetaOutgoing: {
+    color: '#24506d',
+  },
+  attachmentRemoveButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#182739',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  attachmentRemoveButtonText: {
+    color: '#dfe8f0',
+    fontWeight: '700',
+    fontSize: 12,
   },
   bottomBar: {
     flexDirection: 'row',

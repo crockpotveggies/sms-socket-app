@@ -82,6 +82,20 @@ class GatewayClient:
             payload["subscriptionId"] = subscription_id
         return await self.send_command("sendSms", payload=payload)
 
+    async def send_mms(
+        self,
+        destination: str,
+        attachment: JsonDict,
+        body: str | None = None,
+        subscription_id: int | None = None,
+    ) -> JsonDict:
+        payload: JsonDict = {"destination": destination, "attachment": attachment}
+        if body:
+            payload["body"] = body
+        if subscription_id is not None:
+            payload["subscriptionId"] = subscription_id
+        return await self.send_command("sendMms", payload=payload)
+
     async def send_command(
         self,
         command_type: str,

@@ -11,6 +11,7 @@ import {
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {
+  GatewayAttachment,
   GatewayEventRecord,
   GatewayStatus,
   SmsConversation,
@@ -60,6 +61,8 @@ function App(): React.JSX.Element {
   const [searchVisible, setSearchVisible] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [composerBody, setComposerBody] = useState('');
+  const [composerAttachment, setComposerAttachment] =
+    useState<GatewayAttachment | null>(null);
   const [composerAddress, setComposerAddress] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [refreshingMessages, setRefreshingMessages] = useState(false);
@@ -167,7 +170,10 @@ function App(): React.JSX.Element {
           const event = nativeEvent.payload as GatewayEventRecord;
           setEvents(current => [event, ...current].slice(0, 50));
 
-          if (event.type.startsWith('sms.') && messagingReadyRef.current) {
+          if (
+            (event.type.startsWith('sms.') || event.type.startsWith('mms.')) &&
+            messagingReadyRef.current
+          ) {
             loadConversations().catch(() => undefined);
             const currentScreen = activeConversationRef.current;
             if (currentScreen.name === 'conversation') {
@@ -205,6 +211,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     if (screen.name !== 'conversation') {
       setComposerBody('');
+      setComposerAttachment(null);
       setComposerAddress('');
       setMessages([]);
       return;
@@ -318,6 +325,7 @@ function App(): React.JSX.Element {
 
     const result = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+      PermissionsAndroid.PERMISSIONS.RECEIVE_MMS,
       PermissionsAndroid.PERMISSIONS.READ_SMS,
       PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
       PermissionsAndroid.PERMISSIONS.SEND_SMS,
@@ -532,11 +540,27 @@ function App(): React.JSX.Element {
     setScreen({name: 'conversation', draftAddress: ''});
   };
 
+  const pickAttachment = async () => {
+    try {
+      const attachment = await SmsGateway.pickMmsAttachment();
+      setComposerAttachment(attachment);
+    } catch (error) {
+      const message = String(error);
+      if (message.includes('ATTACHMENT_CANCELLED')) {
+        return;
+      }
+      Alert.alert('Attachment failed', message);
+    }
+  };
+
   const sendMessage = async () => {
     const destination = composerAddress.trim();
     const body = composerBody.trim();
-    if (!destination || !body) {
-      Alert.alert('Incomplete message', 'Enter a phone number and message.');
+    if (!destination || (!body && !composerAttachment)) {
+      Alert.alert(
+        'Incomplete message',
+        'Enter a phone number and either a message body or an attachment.',
+      );
       return;
     }
 
@@ -547,8 +571,17 @@ function App(): React.JSX.Element {
         return;
       }
 
-      await SmsGateway.sendSmsMessage({destination, body});
+      if (composerAttachment) {
+        await SmsGateway.sendMmsMessage({
+          destination,
+          body: body || undefined,
+          attachment: composerAttachment,
+        });
+      } else {
+        await SmsGateway.sendSmsMessage({destination, body});
+      }
       setComposerBody('');
+      setComposerAttachment(null);
       setScreen({
         name: 'conversation',
         address: destination,
@@ -582,10 +615,11 @@ function App(): React.JSX.Element {
           <ConversationScreen
             title={activeConversationTitle}
             subtitle={
-              activeConversation ? activeConversation.address : composerAddress || 'SMS thread'
+              activeConversation ? activeConversation.address : composerAddress || 'Message thread'
             }
             address={composerAddress}
             body={composerBody}
+            attachment={composerAttachment}
             loading={messagesLoading}
             refreshing={refreshingMessages}
             sending={sendingMessage}
@@ -593,6 +627,10 @@ function App(): React.JSX.Element {
             onBack={() => setScreen({name: 'messages'})}
             onChangeAddress={setComposerAddress}
             onChangeBody={setComposerBody}
+            onPickAttachment={() => {
+              pickAttachment().catch(() => undefined);
+            }}
+            onClearAttachment={() => setComposerAttachment(null)}
             onSend={sendMessage}
             editableAddress={!screen.threadId}
           />
@@ -675,7 +713,7 @@ function App(): React.JSX.Element {
             <BottomTabBar
               active={screen.name === 'gateway' ? 'gateway' : 'messages'}
               onChange={tab =>
-                setScreen({name: tab === 'gateway' ? 'gateway' : 'messages'})
+                setScreen(tab === 'gateway' ? {name: 'gateway'} : {name: 'messages'})
               }
             />
           </View>

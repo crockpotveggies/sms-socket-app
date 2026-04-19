@@ -92,6 +92,36 @@ class GatewayWebSocketServer(
           val result = SmsGatewayCore.enqueueOutboundSms(context, destination, body, subscriptionId)
           sendResponse(conn, requestId, true, result)
         }
+        "sendMms" -> {
+          val destination = payload.optString("destination").trim()
+          if (destination.isBlank() || !payload.has("attachment")) {
+            sendResponse(
+              conn,
+              requestId,
+              false,
+              JSONObject().put("error", "destination and attachment are required"),
+            )
+            return
+          }
+
+          val subject =
+            if (payload.has("subject") && !payload.isNull("subject")) payload.optString("subject") else null
+          val body =
+            if (payload.has("body") && !payload.isNull("body")) payload.optString("body") else ""
+          val subscriptionId =
+            if (payload.has("subscriptionId")) payload.optInt("subscriptionId") else null
+
+          val result =
+            SmsGatewayCore.enqueueOutboundMms(
+              context,
+              destination,
+              body,
+              subject,
+              payload.getJSONObject("attachment"),
+              subscriptionId,
+            )
+          sendResponse(conn, requestId, true, result)
+        }
         else ->
           sendResponse(
             conn,
