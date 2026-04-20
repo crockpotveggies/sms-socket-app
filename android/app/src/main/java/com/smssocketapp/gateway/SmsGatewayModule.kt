@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.telecom.TelecomManager
 import android.provider.Telephony
 import android.util.Log
 import com.facebook.react.bridge.ActivityEventListener
@@ -22,6 +23,7 @@ class SmsGatewayModule(
   private val reactContext: ReactApplicationContext,
 ) : ReactContextBaseJavaModule(reactContext) {
   private var pendingRolePromise: Promise? = null
+  private var pendingDialerRolePromise: Promise? = null
   private var pendingAttachmentPromise: Promise? = null
 
   private val activityEventListener: ActivityEventListener =
@@ -36,6 +38,14 @@ class SmsGatewayModule(
           val granted = GatewayStatusFactory.isDefaultSmsApp(reactContext)
           pendingRolePromise?.resolve(granted)
           pendingRolePromise = null
+          GatewayRuntime.emitState()
+          return
+        }
+
+        if (requestCode == REQUEST_DIALER_ROLE) {
+          val granted = GatewayDialerSupport.isDefaultDialer(reactContext)
+          pendingDialerRolePromise?.resolve(granted)
+          pendingDialerRolePromise = null
           GatewayRuntime.emitState()
           return
         }
@@ -110,6 +120,32 @@ class SmsGatewayModule(
   }
 
   @ReactMethod
+  fun requestDialerRole(promise: Promise) {
+    if (GatewayDialerSupport.isDefaultDialer(reactContext)) {
+      promise.resolve(true)
+      return
+    }
+
+    pendingDialerRolePromise = promise
+    val launched =
+      GatewayDialerSupport.launchRolePrompt(
+        reactContext,
+        reactApplicationContext.currentActivity,
+        REQUEST_DIALER_ROLE,
+      )
+    if (!launched) {
+      pendingDialerRolePromise = null
+      promise.reject("NO_ACTIVITY", "An activity is required to request the dialer role.")
+      return
+    }
+  }
+
+  @ReactMethod
+  fun getDialerStatus(promise: Promise) {
+    promise.resolve(JsonBridge.toWritableMap(GatewayDialerManager.getDialerStatus(reactContext)))
+  }
+
+  @ReactMethod
   fun startGateway(configMap: ReadableMap, promise: Promise) {
     if (!GatewayStatusFactory.isDefaultSmsApp(reactContext)) {
       promise.reject(
@@ -118,7 +154,7 @@ class SmsGatewayModule(
       )
       return
     }
-    if (!GatewayPermissions.allGranted(reactContext)) {
+    if (!GatewayPermissions.smsPermissionsGranted(reactContext)) {
       promise.reject(
         "SMS_PERMISSIONS_REQUIRED",
         "SMS, receive, send, and phone-state permissions are required before the gateway can start.",
@@ -199,6 +235,13 @@ class SmsGatewayModule(
   @ReactMethod
   fun listSubscriptions(promise: Promise) {
     promise.resolve(JsonBridge.toWritableArray(GatewayStatusFactory.listSubscriptions(reactContext)))
+  }
+
+  @ReactMethod
+  fun listRecentCalls(limit: Int, promise: Promise) {
+    promise.resolve(
+      JsonBridge.toWritableArray(GatewayDialerManager.listRecentCalls(reactContext, limit)),
+    )
   }
 
   @ReactMethod
@@ -286,7 +329,7 @@ class SmsGatewayModule(
       )
       return
     }
-    if (!GatewayPermissions.allGranted(reactContext)) {
+    if (!GatewayPermissions.smsPermissionsGranted(reactContext)) {
       promise.reject(
         "SMS_PERMISSIONS_REQUIRED",
         "SMS, receive, send, and phone-state permissions are required before sending SMS messages.",
@@ -325,7 +368,7 @@ class SmsGatewayModule(
       )
       return
     }
-    if (!GatewayPermissions.allGranted(reactContext)) {
+    if (!GatewayPermissions.smsPermissionsGranted(reactContext)) {
       promise.reject(
         "SMS_PERMISSIONS_REQUIRED",
         "SMS, receive, send, and phone-state permissions are required before sending MMS messages.",
@@ -413,6 +456,102 @@ class SmsGatewayModule(
   }
 
   @ReactMethod
+  fun placeCall(request: ReadableMap, promise: Promise) {
+    val number = request.getString("number")?.trim().orEmpty()
+    val speakerphone =
+      if (request.hasKey("speakerphone")) request.getBoolean("speakerphone") else false
+
+    if (number.isBlank()) {
+      promise.reject("INVALID_CALL", "number is required.")
+      return
+    }
+
+    try {
+      promise.resolve(
+        JsonBridge.toWritableMap(
+          GatewayDialerManager.placeCall(reactContext, number, speakerphone),
+        ),
+      )
+    } catch (error: Exception) {
+      promise.reject("CALL_PLACE_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun answerCall(request: ReadableMap, promise: Promise) {
+    val callId = request.getString("callId")?.trim().orEmpty()
+    if (callId.isBlank()) {
+      promise.reject("INVALID_CALL", "callId is required.")
+      return
+    }
+
+    try {
+      promise.resolve(GatewayDialerManager.answerCall(reactContext, callId))
+    } catch (error: Exception) {
+      promise.reject("CALL_ANSWER_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun rejectCall(request: ReadableMap, promise: Promise) {
+    val callId = request.getString("callId")?.trim().orEmpty()
+    if (callId.isBlank()) {
+      promise.reject("INVALID_CALL", "callId is required.")
+      return
+    }
+
+    try {
+      promise.resolve(GatewayDialerManager.rejectCall(reactContext, callId))
+    } catch (error: Exception) {
+      promise.reject("CALL_REJECT_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun endCall(request: ReadableMap, promise: Promise) {
+    val callId = request.getString("callId")?.trim().orEmpty()
+    if (callId.isBlank()) {
+      promise.reject("INVALID_CALL", "callId is required.")
+      return
+    }
+
+    try {
+      promise.resolve(GatewayDialerManager.endCall(reactContext, callId))
+    } catch (error: Exception) {
+      promise.reject("CALL_END_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun setMuted(request: ReadableMap, promise: Promise) {
+    val callId = request.getString("callId")?.trim().orEmpty()
+    if (callId.isBlank() || !request.hasKey("muted")) {
+      promise.reject("INVALID_CALL", "callId and muted are required.")
+      return
+    }
+
+    try {
+      promise.resolve(
+        GatewayDialerManager.setMuted(reactContext, callId, request.getBoolean("muted")),
+      )
+    } catch (error: Exception) {
+      promise.reject("CALL_MUTE_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun showInCallScreen(request: ReadableMap, promise: Promise) {
+    val showDialpad =
+      if (request.hasKey("showDialpad")) request.getBoolean("showDialpad") else false
+
+    try {
+      promise.resolve(GatewayDialerManager.showInCallScreen(reactContext, showDialpad))
+    } catch (error: Exception) {
+      promise.reject("CALL_UI_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
   fun addListener(eventName: String) = Unit
 
   @ReactMethod
@@ -422,5 +561,6 @@ class SmsGatewayModule(
     private const val TAG = "SmsGatewayModule"
     private const val REQUEST_SMS_ROLE = 8788
     private const val REQUEST_ATTACHMENT_PICK = 8789
+    private const val REQUEST_DIALER_ROLE = 8790
   }
 }

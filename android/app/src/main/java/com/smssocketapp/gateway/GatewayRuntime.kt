@@ -1,5 +1,6 @@
 package com.smssocketapp.gateway
 
+import android.app.Activity
 import android.content.Context
 import android.util.Log
 import com.facebook.react.bridge.ReactApplicationContext
@@ -33,6 +34,8 @@ object GatewayRuntime {
   fun isRunning(): Boolean = server != null
 
   fun connectionCount(): Int = openConnections
+
+  fun currentActivity(): Activity? = reactContextRef?.get()?.currentActivity
 
   @Synchronized
   fun startServer(context: Context, config: GatewayConfig) {

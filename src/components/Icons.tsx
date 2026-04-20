@@ -35,6 +35,15 @@ export function GatewayTabIcon({active}: {active: boolean}) {
   );
 }
 
+export function CallsTabIcon({active}: {active: boolean}) {
+  return (
+    <View style={styles.iconPhone}>
+      <View style={[styles.iconPhoneArc, active ? styles.iconActiveFill : null]} />
+      <View style={[styles.iconPhoneHandle, active ? styles.iconActiveFill : null]} />
+    </View>
+  );
+}
+
 export function SearchIcon({compact = false}: {compact?: boolean}) {
   return (
     <View style={compact ? styles.searchIconWrapCompact : styles.searchIconWrap}>

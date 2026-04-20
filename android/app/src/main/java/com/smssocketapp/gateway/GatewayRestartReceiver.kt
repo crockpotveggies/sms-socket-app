@@ -9,7 +9,7 @@ class GatewayRestartReceiver : BroadcastReceiver() {
     if (
       GatewayConfigStore(context).load().enabled &&
         GatewayStatusFactory.isDefaultSmsApp(context) &&
-        GatewayPermissions.allGranted(context)
+        GatewayPermissions.smsPermissionsGranted(context)
     ) {
       GatewayForegroundService.ensureStarted(context)
     }

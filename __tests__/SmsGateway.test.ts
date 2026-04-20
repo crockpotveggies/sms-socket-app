@@ -1,6 +1,9 @@
 import {
+  SmsGateway,
   GatewayStatus,
   coercePort,
+  formatDialerCallState,
+  formatDialerRoute,
   formatMessageDeliveryState,
   formatMessageFailureDetail,
   formatConversationTitle,
@@ -16,6 +19,7 @@ const baseStatus: GatewayStatus = {
   port: 8787,
   connectionCount: 1,
   smsRoleGranted: true,
+  dialerRoleGranted: true,
   notificationPermissionGranted: true,
   gatewayPermissionsGranted: true,
   missingPermissions: [],
@@ -24,9 +28,25 @@ const baseStatus: GatewayStatus = {
   apiKeyPreview: '****ABCD',
   addresses: ['192.168.1.25'],
   recentEvents: [],
+  inCallServiceHealthy: true,
+  activeCalls: [],
+  dialerMissingPermissions: [],
 };
 
 describe('SmsGateway helpers', () => {
+  it('exposes additive dialer bridge methods alongside existing SMS methods', () => {
+    expect(typeof SmsGateway.requestSmsRole).toBe('function');
+    expect(typeof SmsGateway.sendSmsMessage).toBe('function');
+    expect(typeof SmsGateway.requestDialerRole).toBe('function');
+    expect(typeof SmsGateway.getDialerStatus).toBe('function');
+    expect(typeof SmsGateway.placeCall).toBe('function');
+    expect(typeof SmsGateway.answerCall).toBe('function');
+    expect(typeof SmsGateway.rejectCall).toBe('function');
+    expect(typeof SmsGateway.endCall).toBe('function');
+    expect(typeof SmsGateway.setMuted).toBe('function');
+    expect(typeof SmsGateway.showInCallScreen).toBe('function');
+  });
+
   it('formats gateway addresses', () => {
     expect(formatServerAddresses(baseStatus)).toBe('192.168.1.25:8787');
   });
@@ -41,11 +61,31 @@ describe('SmsGateway helpers', () => {
   it('builds the setup checklist', () => {
     expect(getGatewayChecklist(baseStatus)).toEqual([
       {label: 'Default SMS role', ready: true},
+      {label: 'Default dialer role', ready: true},
       {label: 'Notifications allowed', ready: true},
       {label: 'SMS permissions granted', ready: true},
+      {label: 'Dialer permissions granted', ready: true},
+      {label: 'In-call service healthy', ready: true},
       {label: 'Battery optimization ignored', ready: false},
       {label: 'API key configured', ready: true},
     ]);
+  });
+
+  it('marks dialer checklist items pending when role or health is missing', () => {
+    expect(
+      getGatewayChecklist({
+        ...baseStatus,
+        dialerRoleGranted: false,
+        inCallServiceHealthy: false,
+        dialerMissingPermissions: ['android.permission.CALL_PHONE'],
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        {label: 'Default dialer role', ready: false},
+        {label: 'Dialer permissions granted', ready: false},
+        {label: 'In-call service healthy', ready: false},
+      ]),
+    );
   });
 
   it('prefers display name when formatting conversation titles', () => {
@@ -102,5 +142,15 @@ describe('SmsGateway helpers', () => {
         failureReason: 'Should stay hidden.',
       }),
     ).toBeNull();
+  });
+
+  it('formats dialer state and route labels for the calls UI', () => {
+    expect(
+      formatDialerCallState({
+        state: 'ringing',
+        direction: 'incoming',
+      }),
+    ).toBe('Incoming call');
+    expect(formatDialerRoute('wired_headset')).toBe('Wired Headset');
   });
 });

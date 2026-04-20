@@ -2,14 +2,14 @@ import React from 'react';
 import {Pressable, Text, View} from 'react-native';
 
 import {styles} from '../styles/appStyles';
-import {GatewayTabIcon, MessagesTabIcon} from './Icons';
+import {CallsTabIcon, GatewayTabIcon, MessagesTabIcon} from './Icons';
 
 export function BottomTabBar({
   active,
   onChange,
 }: {
-  active: 'messages' | 'gateway';
-  onChange: (tab: 'messages' | 'gateway') => void;
+  active: 'messages' | 'calls' | 'gateway';
+  onChange: (tab: 'messages' | 'calls' | 'gateway') => void;
 }) {
   return (
     <View style={styles.bottomBar}>
@@ -18,6 +18,12 @@ export function BottomTabBar({
         active={active === 'messages'}
         icon={<MessagesTabIcon active={active === 'messages'} />}
         onPress={() => onChange('messages')}
+      />
+      <BottomTabButton
+        label="Calls"
+        active={active === 'calls'}
+        icon={<CallsTabIcon active={active === 'calls'} />}
+        onPress={() => onChange('calls')}
       />
       <BottomTabButton
         label="Gateway"

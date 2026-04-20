@@ -32,6 +32,7 @@ export type GatewayStatus = {
   port: number;
   connectionCount: number;
   smsRoleGranted: boolean;
+  dialerRoleGranted: boolean;
   notificationPermissionGranted: boolean;
   batteryOptimizationsIgnored: boolean;
   gatewayPermissionsGranted: boolean;
@@ -40,6 +41,47 @@ export type GatewayStatus = {
   apiKeyPreview: string;
   addresses: string[];
   recentEvents: GatewayEventRecord[];
+  inCallServiceHealthy: boolean;
+  activeCalls: DialerCall[];
+  dialerMissingPermissions: string[];
+};
+
+export type DialerCall = {
+  callId: string;
+  number: string;
+  displayName: string;
+  direction: 'incoming' | 'outgoing' | 'unknown';
+  state:
+    | 'new'
+    | 'dialing'
+    | 'ringing'
+    | 'holding'
+    | 'active'
+    | 'disconnecting'
+    | 'disconnected'
+    | 'select_phone_account'
+    | 'connecting'
+    | 'unknown';
+  isMuted: boolean;
+  route: string;
+  isConference: boolean;
+  canAnswer: boolean;
+  canReject: boolean;
+  canDisconnect: boolean;
+};
+
+export type DialerStatus = Pick<
+  GatewayStatus,
+  'dialerRoleGranted' | 'inCallServiceHealthy' | 'activeCalls' | 'dialerMissingPermissions'
+>;
+
+export type DialerRecentCall = {
+  id: string;
+  number: string;
+  displayName: string;
+  direction: string;
+  timestamp: number;
+  durationSeconds: number;
 };
 
 export type SmsConversation = {
@@ -118,13 +160,34 @@ type SendMmsArgs = {
   attachment: GatewayAttachment;
 };
 
+type PlaceCallArgs = {
+  number: string;
+  speakerphone?: boolean;
+};
+
+type DialerCallRequest = {
+  callId: string;
+};
+
+type SetMutedRequest = {
+  callId: string;
+  muted: boolean;
+};
+
+type ShowInCallScreenRequest = {
+  showDialpad?: boolean;
+};
+
 type NativeSmsGatewayModule = {
   requestSmsRole(): Promise<boolean>;
+  requestDialerRole(): Promise<boolean>;
   getGatewayStatus(): Promise<GatewayStatus>;
+  getDialerStatus(): Promise<DialerStatus>;
   startGateway(config: StartGatewayArgs): Promise<StartGatewayResult>;
   stopGateway(): Promise<GatewayStatus>;
   generateApiKey(): Promise<GenerateApiKeyResult>;
   listSubscriptions(): Promise<Array<Record<string, unknown>>>;
+  listRecentCalls(limit: number): Promise<DialerRecentCall[]>;
   listConversations(limit: number): Promise<SmsConversation[]>;
   getConversationMessages(request: {
     threadId?: string;
@@ -145,6 +208,12 @@ type NativeSmsGatewayModule = {
   }): Promise<boolean>;
   sendSmsMessage(request: SendSmsArgs): Promise<Record<string, unknown>>;
   sendMmsMessage(request: SendMmsArgs): Promise<Record<string, unknown>>;
+  placeCall(request: PlaceCallArgs): Promise<Record<string, unknown>>;
+  answerCall(request: DialerCallRequest): Promise<boolean>;
+  rejectCall(request: DialerCallRequest): Promise<boolean>;
+  endCall(request: DialerCallRequest): Promise<boolean>;
+  setMuted(request: SetMutedRequest): Promise<boolean>;
+  showInCallScreen(request: ShowInCallScreenRequest): Promise<boolean>;
   pickMmsAttachment(): Promise<GatewayAttachment>;
   openBatteryOptimizationSettings(): Promise<boolean>;
   addListener(eventName: string): void;
@@ -159,11 +228,14 @@ const emitter = SmsGatewayModule ? new NativeEventEmitter(SmsGatewayModule) : nu
 
 export const SmsGateway = {
   requestSmsRole: () => SmsGatewayModule.requestSmsRole(),
+  requestDialerRole: () => SmsGatewayModule.requestDialerRole(),
   getGatewayStatus: () => SmsGatewayModule.getGatewayStatus(),
+  getDialerStatus: () => SmsGatewayModule.getDialerStatus(),
   startGateway: (config: StartGatewayArgs) => SmsGatewayModule.startGateway(config),
   stopGateway: () => SmsGatewayModule.stopGateway(),
   generateApiKey: () => SmsGatewayModule.generateApiKey(),
   listSubscriptions: () => SmsGatewayModule.listSubscriptions(),
+  listRecentCalls: (limit = 25) => SmsGatewayModule.listRecentCalls(limit),
   listConversations: (limit = 100) => SmsGatewayModule.listConversations(limit),
   getConversationMessages: (request: {
     threadId?: string;
@@ -178,6 +250,13 @@ export const SmsGateway = {
     SmsGatewayModule.deleteConversation(request),
   sendSmsMessage: (request: SendSmsArgs) => SmsGatewayModule.sendSmsMessage(request),
   sendMmsMessage: (request: SendMmsArgs) => SmsGatewayModule.sendMmsMessage(request),
+  placeCall: (request: PlaceCallArgs) => SmsGatewayModule.placeCall(request),
+  answerCall: (request: DialerCallRequest) => SmsGatewayModule.answerCall(request),
+  rejectCall: (request: DialerCallRequest) => SmsGatewayModule.rejectCall(request),
+  endCall: (request: DialerCallRequest) => SmsGatewayModule.endCall(request),
+  setMuted: (request: SetMutedRequest) => SmsGatewayModule.setMuted(request),
+  showInCallScreen: (request: ShowInCallScreenRequest = {}) =>
+    SmsGatewayModule.showInCallScreen(request),
   pickMmsAttachment: () => SmsGatewayModule.pickMmsAttachment(),
   openBatteryOptimizationSettings: () =>
     SmsGatewayModule.openBatteryOptimizationSettings(),
@@ -222,6 +301,7 @@ export const formatServerAddresses = (status: GatewayStatus | null): string => {
 
 export const getGatewayChecklist = (status: GatewayStatus | null) => [
   {label: 'Default SMS role', ready: Boolean(status?.smsRoleGranted)},
+  {label: 'Default dialer role', ready: Boolean(status?.dialerRoleGranted)},
   {
     label: 'Notifications allowed',
     ready: Boolean(status?.notificationPermissionGranted),
@@ -229,6 +309,14 @@ export const getGatewayChecklist = (status: GatewayStatus | null) => [
   {
     label: 'SMS permissions granted',
     ready: Boolean(status?.gatewayPermissionsGranted),
+  },
+  {
+    label: 'Dialer permissions granted',
+    ready: Boolean(status && (status.dialerMissingPermissions ?? []).length === 0),
+  },
+  {
+    label: 'In-call service healthy',
+    ready: Boolean(status?.inCallServiceHealthy),
   },
   {
     label: 'Battery optimization ignored',
@@ -308,3 +396,27 @@ export const formatMessageFailureDetail = (
   const detail = message.failureReason?.trim();
   return detail && detail.length > 0 ? detail : null;
 };
+
+export const formatDialerCallState = (call: Pick<DialerCall, 'state' | 'direction'>) => {
+  switch (call.state) {
+    case 'ringing':
+      return call.direction === 'incoming' ? 'Incoming call' : 'Ringing';
+    case 'dialing':
+      return 'Dialing';
+    case 'active':
+      return 'Live';
+    case 'holding':
+      return 'On hold';
+    case 'disconnecting':
+      return 'Ending';
+    case 'disconnected':
+      return 'Ended';
+    case 'connecting':
+      return 'Connecting';
+    default:
+      return call.state.replace(/_/g, ' ');
+  }
+};
+
+export const formatDialerRoute = (route: string) =>
+  route.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());

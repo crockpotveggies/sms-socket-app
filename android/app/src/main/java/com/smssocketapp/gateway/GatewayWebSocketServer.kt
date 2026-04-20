@@ -53,9 +53,23 @@ class GatewayWebSocketServer(
       }
       authenticatedConnections.add(conn)
 
+      val validation = GatewayCommandParser.validate(type, payload)
+      if (!validation.ok) {
+        sendResponse(
+          conn,
+          requestId,
+          false,
+          JSONObject().put("error", validation.error ?: "Invalid request"),
+        )
+        return
+      }
+      val normalizedPayload = validation.payload
+
       when (type) {
         "getGatewayState" ->
           sendResponse(conn, requestId, true, GatewayStatusFactory.create(context))
+        "getDialerState" ->
+          sendResponse(conn, requestId, true, GatewayDialerManager.getDialerStatus(context))
         "listSubscriptions" ->
           sendResponse(
             conn,
@@ -63,9 +77,35 @@ class GatewayWebSocketServer(
             true,
             JSONObject().put("subscriptions", GatewayStatusFactory.listSubscriptions(context)),
           )
+        "requestDialerRole" -> {
+          val launched =
+            GatewayDialerSupport.launchRolePrompt(
+              context,
+              GatewayRuntime.currentActivity(),
+              8790,
+            )
+          if (!launched && !GatewayDialerSupport.isDefaultDialer(context)) {
+            sendResponse(
+              conn,
+              requestId,
+              false,
+              JSONObject().put("error", "An activity is required to request the dialer role."),
+            )
+            return
+          }
+
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            JSONObject()
+              .put("requested", launched)
+              .put("status", GatewayDialerManager.getDialerStatus(context)),
+          )
+        }
         "rehydrate" -> {
-          val since = payload.optLong("since", 0L)
-          val limit = payload.optInt("limit", 100)
+          val since = normalizedPayload.optLong("since", 0L)
+          val limit = normalizedPayload.optInt("limit", 100)
           sendResponse(
             conn,
             requestId,
@@ -76,40 +116,37 @@ class GatewayWebSocketServer(
         "ack" ->
           sendResponse(conn, requestId, true, JSONObject().put("acknowledged", true))
         "sendSms" -> {
-          val destination = payload.optString("destination").trim()
-          val body = payload.optString("body")
-          if (destination.isBlank() || body.isBlank()) {
-            sendResponse(
-              conn,
-              requestId,
-              false,
-              JSONObject().put("error", "destination and body are required"),
-            )
-            return
-          }
+          val destination = normalizedPayload.getString("destination")
+          val body = normalizedPayload.getString("body")
           val subscriptionId =
-            if (payload.has("subscriptionId")) payload.optInt("subscriptionId") else null
+            if (normalizedPayload.has("subscriptionId") && !normalizedPayload.isNull("subscriptionId")) {
+              normalizedPayload.optInt("subscriptionId")
+            } else {
+              null
+            }
           val result = SmsGatewayCore.enqueueOutboundSms(context, destination, body, subscriptionId)
           sendResponse(conn, requestId, true, result)
         }
         "sendMms" -> {
-          val destination = payload.optString("destination").trim()
-          if (destination.isBlank() || !payload.has("attachment")) {
-            sendResponse(
-              conn,
-              requestId,
-              false,
-              JSONObject().put("error", "destination and attachment are required"),
-            )
-            return
-          }
-
+          val destination = normalizedPayload.getString("destination")
           val subject =
-            if (payload.has("subject") && !payload.isNull("subject")) payload.optString("subject") else null
+            if (normalizedPayload.has("subject") && !normalizedPayload.isNull("subject")) {
+              normalizedPayload.optString("subject")
+            } else {
+              null
+            }
           val body =
-            if (payload.has("body") && !payload.isNull("body")) payload.optString("body") else ""
+            if (normalizedPayload.has("body") && !normalizedPayload.isNull("body")) {
+              normalizedPayload.optString("body")
+            } else {
+              ""
+            }
           val subscriptionId =
-            if (payload.has("subscriptionId")) payload.optInt("subscriptionId") else null
+            if (normalizedPayload.has("subscriptionId") && !normalizedPayload.isNull("subscriptionId")) {
+              normalizedPayload.optInt("subscriptionId")
+            } else {
+              null
+            }
 
           val result =
             SmsGatewayCore.enqueueOutboundMms(
@@ -117,11 +154,77 @@ class GatewayWebSocketServer(
               destination,
               body,
               subject,
-              payload.getJSONObject("attachment"),
+              normalizedPayload.getJSONObject("attachment"),
               subscriptionId,
             )
           sendResponse(conn, requestId, true, result)
         }
+        "placeCall" -> {
+          val result =
+            GatewayDialerManager.placeCall(
+              context,
+              normalizedPayload.getString("number"),
+              normalizedPayload.optBoolean("speakerphone", false),
+            )
+          sendResponse(conn, requestId, true, result)
+        }
+        "answerCall" ->
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            JSONObject().put(
+              "answered",
+              GatewayDialerManager.answerCall(context, normalizedPayload.getString("callId")),
+            ),
+          )
+        "rejectCall" ->
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            JSONObject().put(
+              "rejected",
+              GatewayDialerManager.rejectCall(context, normalizedPayload.getString("callId")),
+            ),
+          )
+        "endCall" ->
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            JSONObject().put(
+              "ended",
+              GatewayDialerManager.endCall(context, normalizedPayload.getString("callId")),
+            ),
+          )
+        "setMuted" ->
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            JSONObject().put(
+              "muted",
+              GatewayDialerManager.setMuted(
+                context,
+                normalizedPayload.getString("callId"),
+                normalizedPayload.getBoolean("muted"),
+              ),
+            ),
+          )
+        "showInCallScreen" ->
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            JSONObject().put(
+              "shown",
+              GatewayDialerManager.showInCallScreen(
+                context,
+                normalizedPayload.optBoolean("showDialpad", false),
+              ),
+            ),
+          )
         else ->
           sendResponse(
             conn,

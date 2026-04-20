@@ -19,6 +19,12 @@ object GatewayStatusFactory {
     val config = configStore.load()
     val eventStore = GatewayEventStore(context)
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    val dialerStatus = GatewayDialerManager.getDialerStatus(context)
+    val roleState =
+      GatewayStatusSlices.roleState(
+        isDefaultSmsApp(context),
+        GatewayDialerSupport.isDefaultDialer(context),
+      )
 
     return JSONObject()
       .put("enabled", config.enabled)
@@ -26,10 +32,11 @@ object GatewayStatusFactory {
       .put("host", config.host)
       .put("port", config.port)
       .put("connectionCount", GatewayRuntime.connectionCount())
-      .put("smsRoleGranted", isDefaultSmsApp(context))
+      .put("smsRoleGranted", roleState.optBoolean("smsRoleGranted"))
+      .put("dialerRoleGranted", roleState.optBoolean("dialerRoleGranted"))
       .put("notificationPermissionGranted", notificationsGranted(context))
-      .put("gatewayPermissionsGranted", GatewayPermissions.allGranted(context))
-      .put("missingPermissions", JSONArray(GatewayPermissions.missingPermissions(context)))
+      .put("gatewayPermissionsGranted", GatewayPermissions.smsPermissionsGranted(context))
+      .put("missingPermissions", JSONArray(GatewayPermissions.missingSmsPermissions(context)))
       .put(
         "batteryOptimizationsIgnored",
         powerManager.isIgnoringBatteryOptimizations(context.packageName),
@@ -38,6 +45,9 @@ object GatewayStatusFactory {
       .put("apiKeyPreview", config.apiKeyPreview)
       .put("addresses", localAddresses(config.host))
       .put("recentEvents", eventStore.getRecent())
+      .put("inCallServiceHealthy", dialerStatus.optBoolean("inCallServiceHealthy"))
+      .put("activeCalls", dialerStatus.optJSONArray("activeCalls"))
+      .put("dialerMissingPermissions", dialerStatus.optJSONArray("dialerMissingPermissions"))
   }
 
   fun isDefaultSmsApp(context: Context): Boolean =

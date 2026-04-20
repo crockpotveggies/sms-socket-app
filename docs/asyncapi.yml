@@ -21,6 +21,10 @@ channels:
         $ref: "#/components/messages/Authenticate"
       getGatewayState:
         $ref: "#/components/messages/GetGatewayState"
+      requestDialerRole:
+        $ref: "#/components/messages/RequestDialerRole"
+      getDialerState:
+        $ref: "#/components/messages/GetDialerState"
       listSubscriptions:
         $ref: "#/components/messages/ListSubscriptions"
       rehydrate:
@@ -29,6 +33,18 @@ channels:
         $ref: "#/components/messages/SendSms"
       sendMms:
         $ref: "#/components/messages/SendMms"
+      placeCall:
+        $ref: "#/components/messages/PlaceCall"
+      answerCall:
+        $ref: "#/components/messages/AnswerCall"
+      rejectCall:
+        $ref: "#/components/messages/RejectCall"
+      endCall:
+        $ref: "#/components/messages/EndCall"
+      setMuted:
+        $ref: "#/components/messages/SetMuted"
+      showInCallScreen:
+        $ref: "#/components/messages/ShowInCallScreen"
       ack:
         $ref: "#/components/messages/Ack"
       response:
@@ -53,6 +69,14 @@ channels:
         $ref: "#/components/messages/MmsOutboundDelivered"
       mmsOutboundFailed:
         $ref: "#/components/messages/MmsOutboundFailed"
+      dialerState:
+        $ref: "#/components/messages/DialerState"
+      callAdded:
+        $ref: "#/components/messages/CallAdded"
+      callUpdated:
+        $ref: "#/components/messages/CallUpdated"
+      callRemoved:
+        $ref: "#/components/messages/CallRemoved"
       gatewayState:
         $ref: "#/components/messages/GatewayState"
 operations:
@@ -68,10 +92,18 @@ operations:
       $ref: "#/channels/gateway"
     messages:
       - $ref: "#/channels/gateway/messages/getGatewayState"
+      - $ref: "#/channels/gateway/messages/requestDialerRole"
+      - $ref: "#/channels/gateway/messages/getDialerState"
       - $ref: "#/channels/gateway/messages/listSubscriptions"
       - $ref: "#/channels/gateway/messages/rehydrate"
       - $ref: "#/channels/gateway/messages/sendSms"
       - $ref: "#/channels/gateway/messages/sendMms"
+      - $ref: "#/channels/gateway/messages/placeCall"
+      - $ref: "#/channels/gateway/messages/answerCall"
+      - $ref: "#/channels/gateway/messages/rejectCall"
+      - $ref: "#/channels/gateway/messages/endCall"
+      - $ref: "#/channels/gateway/messages/setMuted"
+      - $ref: "#/channels/gateway/messages/showInCallScreen"
       - $ref: "#/channels/gateway/messages/ack"
   receiveGatewayEvents:
     action: receive
@@ -89,6 +121,10 @@ operations:
       - $ref: "#/channels/gateway/messages/mmsOutboundSent"
       - $ref: "#/channels/gateway/messages/mmsOutboundDelivered"
       - $ref: "#/channels/gateway/messages/mmsOutboundFailed"
+      - $ref: "#/channels/gateway/messages/dialerState"
+      - $ref: "#/channels/gateway/messages/callAdded"
+      - $ref: "#/channels/gateway/messages/callUpdated"
+      - $ref: "#/channels/gateway/messages/callRemoved"
       - $ref: "#/channels/gateway/messages/gatewayState"
 components:
   schemas:
@@ -188,6 +224,95 @@ components:
           type: integer
       required:
         - since
+    PlaceCallPayload:
+      type: object
+      properties:
+        number:
+          type: string
+        speakerphone:
+          type: boolean
+      required:
+        - number
+    CallControlPayload:
+      type: object
+      properties:
+        callId:
+          type: string
+      required:
+        - callId
+    SetMutedPayload:
+      type: object
+      properties:
+        callId:
+          type: string
+        muted:
+          type: boolean
+      required:
+        - callId
+        - muted
+    ShowInCallScreenPayload:
+      type: object
+      properties:
+        showDialpad:
+          type: boolean
+    CallRecord:
+      type: object
+      properties:
+        callId:
+          type: string
+        number:
+          type: string
+        displayName:
+          type: string
+        direction:
+          type: string
+          enum: [incoming, outgoing, unknown]
+        state:
+          type: string
+        isMuted:
+          type: boolean
+        route:
+          type: string
+        isConference:
+          type: boolean
+        canAnswer:
+          type: boolean
+        canReject:
+          type: boolean
+        canDisconnect:
+          type: boolean
+      required:
+        - callId
+        - number
+        - displayName
+        - direction
+        - state
+        - isMuted
+        - route
+        - isConference
+        - canAnswer
+        - canReject
+        - canDisconnect
+    DialerStatusPayload:
+      type: object
+      properties:
+        dialerRoleGranted:
+          type: boolean
+        inCallServiceHealthy:
+          type: boolean
+        activeCalls:
+          type: array
+          items:
+            $ref: "#/components/schemas/CallRecord"
+        dialerMissingPermissions:
+          type: array
+          items:
+            type: string
+      required:
+        - dialerRoleGranted
+        - inCallServiceHealthy
+        - activeCalls
+        - dialerMissingPermissions
     MessageRecord:
       type: object
       properties:
@@ -290,6 +415,22 @@ components:
             properties:
               type:
                 const: getGatewayState
+    RequestDialerRole:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: requestDialerRole
+    GetDialerState:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: getDialerState
     ListSubscriptions:
       payload:
         allOf:
@@ -328,6 +469,66 @@ components:
                 const: sendMms
               payload:
                 $ref: "#/components/schemas/MmsPayload"
+    PlaceCall:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: placeCall
+              payload:
+                $ref: "#/components/schemas/PlaceCallPayload"
+    AnswerCall:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: answerCall
+              payload:
+                $ref: "#/components/schemas/CallControlPayload"
+    RejectCall:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: rejectCall
+              payload:
+                $ref: "#/components/schemas/CallControlPayload"
+    EndCall:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: endCall
+              payload:
+                $ref: "#/components/schemas/CallControlPayload"
+    SetMuted:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: setMuted
+              payload:
+                $ref: "#/components/schemas/SetMutedPayload"
+    ShowInCallScreen:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: showInCallScreen
+              payload:
+                $ref: "#/components/schemas/ShowInCallScreenPayload"
     Ack:
       payload:
         allOf:
@@ -475,6 +676,54 @@ components:
             format: int64
           payload:
             type: object
+        required: [type, timestamp, payload]
+    DialerState:
+      payload:
+        type: object
+        properties:
+          type:
+            const: dialer.state
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/DialerStatusPayload"
+        required: [type, timestamp, payload]
+    CallAdded:
+      payload:
+        type: object
+        properties:
+          type:
+            const: call.added
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/CallRecord"
+        required: [type, timestamp, payload]
+    CallUpdated:
+      payload:
+        type: object
+        properties:
+          type:
+            const: call.updated
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/CallRecord"
+        required: [type, timestamp, payload]
+    CallRemoved:
+      payload:
+        type: object
+        properties:
+          type:
+            const: call.removed
+          timestamp:
+            type: integer
+            format: int64
+          payload:
+            $ref: "#/components/schemas/CallRecord"
         required: [type, timestamp, payload]
     GatewayState:
       payload:

@@ -11,7 +11,7 @@ export function LabeledInput({
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
-  keyboardType?: 'default' | 'numeric';
+  keyboardType?: 'default' | 'numeric' | 'phone-pad';
   secureTextEntry?: boolean;
   editable?: boolean;
 } & TextInputProps) {

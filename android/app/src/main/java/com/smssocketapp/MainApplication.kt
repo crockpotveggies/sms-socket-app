@@ -6,6 +6,7 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
+import com.smssocketapp.gateway.GatewayDialerManager
 import com.smssocketapp.gateway.GatewayRuntime
 import com.smssocketapp.gateway.SmsGatewayPackage
 
@@ -24,6 +25,7 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     GatewayRuntime.initialize(this)
+    GatewayDialerManager.initialize(this)
     loadReactNative(this)
   }
 }

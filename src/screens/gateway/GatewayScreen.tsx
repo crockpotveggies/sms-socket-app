@@ -18,7 +18,9 @@ export function GatewayScreen({
   enabled,
   onToggleEnabled,
   onRequestRole,
+  onRequestDialerRole,
   onRequestPermissions,
+  onRequestDialerPermissions,
   onRequestNotifications,
   onOpenBatterySettings,
   onRotateApiKey,
@@ -41,7 +43,9 @@ export function GatewayScreen({
   enabled: boolean;
   onToggleEnabled: (value: boolean) => void;
   onRequestRole: () => void;
+  onRequestDialerRole: () => void;
   onRequestPermissions: () => void;
+  onRequestDialerPermissions: () => void;
   onRequestNotifications: () => void;
   onOpenBatterySettings: () => void;
   onRotateApiKey: () => void;
@@ -112,7 +116,12 @@ export function GatewayScreen({
         ))}
         <View style={styles.actionRow}>
           <ActionButton label="Request SMS role" onPress={onRequestRole} />
+          <ActionButton label="Request dialer role" onPress={onRequestDialerRole} />
           <ActionButton label="SMS permissions" onPress={onRequestPermissions} />
+          <ActionButton
+            label="Call permissions"
+            onPress={onRequestDialerPermissions}
+          />
           <ActionButton label="Notif permission" onPress={onRequestNotifications} />
         </View>
         <View style={styles.actionRow}>

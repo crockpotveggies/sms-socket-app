@@ -11,6 +11,8 @@ import {
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {
+  DialerCall,
+  DialerRecentCall,
   GatewayAttachment,
   GatewayEventRecord,
   GatewayStatus,
@@ -24,6 +26,7 @@ import {
 } from './src/SmsGateway';
 import {AppHeader} from './src/components/AppHeader';
 import {BottomTabBar} from './src/components/BottomTabBar';
+import {CallsScreen} from './src/screens/calls/CallsScreen';
 import {GatewayScreen} from './src/screens/gateway/GatewayScreen';
 import {ConversationScreen} from './src/screens/messages/ConversationScreen';
 import {MessagesHome} from './src/screens/messages/MessagesHome';
@@ -34,6 +37,7 @@ const DEFAULT_PORT = '8787';
 
 type ScreenState =
   | {name: 'messages'}
+  | {name: 'calls'}
   | {name: 'gateway'}
   | {
       name: 'conversation';
@@ -46,6 +50,8 @@ function App(): React.JSX.Element {
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [events, setEvents] = useState<GatewayEventRecord[]>([]);
   const [gatewayLoading, setGatewayLoading] = useState(true);
+  const [recentCalls, setRecentCalls] = useState<DialerRecentCall[]>([]);
+  const [recentCallsLoading, setRecentCallsLoading] = useState(false);
   const [conversations, setConversations] = useState<SmsConversation[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(true);
   const [messages, setMessages] = useState<SmsMessage[]>([]);
@@ -60,6 +66,7 @@ function App(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [dialerNumber, setDialerNumber] = useState('');
   const [composerBody, setComposerBody] = useState('');
   const [composerAttachment, setComposerAttachment] =
     useState<GatewayAttachment | null>(null);
@@ -89,6 +96,17 @@ function App(): React.JSX.Element {
       Alert.alert('Gateway status unavailable', String(error));
     } finally {
       setGatewayLoading(false);
+    }
+  }, []);
+
+  const loadRecentCalls = useCallback(async () => {
+    try {
+      const nextRecentCalls = await SmsGateway.listRecentCalls(25);
+      setRecentCalls(nextRecentCalls);
+    } catch (error) {
+      Alert.alert('Recent calls unavailable', String(error));
+    } finally {
+      setRecentCallsLoading(false);
     }
   }, []);
 
@@ -186,13 +204,30 @@ function App(): React.JSX.Element {
               ).catch(() => undefined);
             }
           }
+
+          if (event.type === 'call.added' || event.type === 'dialer.ui.requested') {
+            setScreen({name: 'calls'});
+          }
+
+          if (event.type.startsWith('call.') || event.type === 'dialer.state') {
+            loadGatewayStatus().catch(() => undefined);
+            if (
+              status &&
+              !status.dialerMissingPermissions.includes(
+                'android.permission.READ_CALL_LOG',
+              )
+            ) {
+              setRecentCallsLoading(true);
+              loadRecentCalls().catch(() => undefined);
+            }
+          }
         }
       },
     );
 
     loadGatewayStatus().catch(() => undefined);
     return () => subscription.remove();
-  }, [loadConversations, loadGatewayStatus, loadMessages]);
+  }, [loadConversations, loadGatewayStatus, loadMessages, loadRecentCalls, status]);
 
   useEffect(() => {
     if (!messagingReady) {
@@ -207,6 +242,20 @@ function App(): React.JSX.Element {
     setConversationsLoading(true);
     loadConversations().catch(() => undefined);
   }, [loadConversations, messagingReady]);
+
+  useEffect(() => {
+    if (
+      !status ||
+      status.dialerMissingPermissions.includes('android.permission.READ_CALL_LOG')
+    ) {
+      setRecentCalls([]);
+      setRecentCallsLoading(false);
+      return;
+    }
+
+    setRecentCallsLoading(true);
+    loadRecentCalls().catch(() => undefined);
+  }, [loadRecentCalls, status]);
 
   useEffect(() => {
     if (screen.name !== 'conversation') {
@@ -357,6 +406,61 @@ function App(): React.JSX.Element {
     }
   };
 
+  const requestDialerPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android' || Platform.Version < 23) {
+      return true;
+    }
+
+    const permissions = [PermissionsAndroid.PERMISSIONS.CALL_PHONE];
+    if (Platform.Version >= 26) {
+      permissions.push(PermissionsAndroid.PERMISSIONS.ANSWER_PHONE_CALLS);
+    }
+    permissions.push(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
+
+    const result = await PermissionsAndroid.requestMultiple(permissions);
+    const controlPermissions = permissions.filter(
+      permission => permission !== PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
+    );
+    const controlGranted = controlPermissions.every(
+      permission => result[permission] === PermissionsAndroid.RESULTS.GRANTED,
+    );
+
+    if (!controlGranted) {
+      Alert.alert(
+        'Call permissions required',
+        'The app needs phone-call permissions before it can place or control calls.',
+      );
+    } else if (
+      result[PermissionsAndroid.PERMISSIONS.READ_CALL_LOG] !==
+      PermissionsAndroid.RESULTS.GRANTED
+    ) {
+      Alert.alert(
+        'Call log optional',
+        'Call control is ready, but recent calls will stay hidden until call-log access is granted.',
+      );
+    }
+
+    await loadGatewayStatus();
+    if (
+      result[PermissionsAndroid.PERMISSIONS.READ_CALL_LOG] ===
+      PermissionsAndroid.RESULTS.GRANTED
+    ) {
+      setRecentCallsLoading(true);
+      await loadRecentCalls();
+    }
+
+    return controlGranted;
+  };
+
+  const requestDialerRole = async () => {
+    try {
+      await SmsGateway.requestDialerRole();
+      await loadGatewayStatus();
+    } catch (error) {
+      Alert.alert('Default dialer role', String(error));
+    }
+  };
+
   const ensureMessagingReady = async (): Promise<boolean> => {
     const roleGranted = status?.smsRoleGranted
       ? true
@@ -370,6 +474,21 @@ function App(): React.JSX.Element {
     }
 
     return requestSmsPermissions();
+  };
+
+  const ensureDialerReady = async (): Promise<boolean> => {
+    const roleGranted = status?.dialerRoleGranted
+      ? true
+      : await SmsGateway.requestDialerRole();
+    if (!roleGranted) {
+      Alert.alert(
+        'Default dialer role required',
+        'This app needs to be the default dialer before it can place or control PSTN calls.',
+      );
+      return false;
+    }
+
+    return requestDialerPermissions();
   };
 
   const startGateway = async () => {
@@ -596,6 +715,67 @@ function App(): React.JSX.Element {
     }
   };
 
+  const placeCall = async () => {
+    const number = dialerNumber.trim();
+    if (!number) {
+      Alert.alert('Number required', 'Enter a phone number before placing a call.');
+      return;
+    }
+
+    try {
+      const ready = await ensureDialerReady();
+      if (!ready) {
+        return;
+      }
+
+      await SmsGateway.placeCall({number});
+      setScreen({name: 'calls'});
+    } catch (error) {
+      Alert.alert('Call failed', String(error));
+    }
+  };
+
+  const answerCall = async (call: DialerCall) => {
+    try {
+      await SmsGateway.answerCall({callId: call.callId});
+    } catch (error) {
+      Alert.alert('Answer failed', String(error));
+    }
+  };
+
+  const rejectCall = async (call: DialerCall) => {
+    try {
+      await SmsGateway.rejectCall({callId: call.callId});
+    } catch (error) {
+      Alert.alert('Reject failed', String(error));
+    }
+  };
+
+  const endCall = async (call: DialerCall) => {
+    try {
+      await SmsGateway.endCall({callId: call.callId});
+    } catch (error) {
+      Alert.alert('End call failed', String(error));
+    }
+  };
+
+  const toggleMuted = async (call: DialerCall) => {
+    try {
+      await SmsGateway.setMuted({callId: call.callId, muted: !call.isMuted});
+    } catch (error) {
+      Alert.alert('Mute failed', String(error));
+    }
+  };
+
+  const showInCallScreen = async (showDialpad = false) => {
+    try {
+      await SmsGateway.showInCallScreen({showDialpad});
+      setScreen({name: 'calls'});
+    } catch (error) {
+      Alert.alert('In-call UI failed', String(error));
+    }
+  };
+
   const onToggleEnabled = (value: boolean) => {
     if (value) {
       setGatewayTransition('starting');
@@ -637,7 +817,13 @@ function App(): React.JSX.Element {
         ) : (
           <View style={styles.root}>
             <AppHeader
-              title={screen.name === 'gateway' ? 'Gateway' : 'SMS Socket'}
+              title={
+                screen.name === 'gateway'
+                  ? 'Gateway'
+                  : screen.name === 'calls'
+                    ? 'Calls'
+                    : 'SMS Socket'
+              }
               searchVisible={screen.name === 'messages' ? searchVisible : false}
               searchQuery={searchQuery}
               onToggleSearch={
@@ -675,6 +861,45 @@ function App(): React.JSX.Element {
                   }}
                 />
               </View>
+            ) : screen.name === 'calls' ? (
+              <CallsScreen
+                status={status}
+                number={dialerNumber}
+                recentCalls={recentCalls}
+                recentCallsLoading={recentCallsLoading}
+                onChangeNumber={setDialerNumber}
+                onPressDigit={digit => setDialerNumber(current => `${current}${digit}`)}
+                onBackspace={() =>
+                  setDialerNumber(current => current.slice(0, Math.max(0, current.length - 1)))
+                }
+                onPlaceCall={() => {
+                  placeCall().catch(() => undefined);
+                }}
+                onRequestRole={() => {
+                  requestDialerRole().catch(() => undefined);
+                }}
+                onRequestPermissions={() => {
+                  requestDialerPermissions().catch(error => {
+                    Alert.alert('Call permissions', String(error));
+                  });
+                }}
+                onAnswerCall={call => {
+                  answerCall(call).catch(() => undefined);
+                }}
+                onRejectCall={call => {
+                  rejectCall(call).catch(() => undefined);
+                }}
+                onEndCall={call => {
+                  endCall(call).catch(() => undefined);
+                }}
+                onToggleMute={call => {
+                  toggleMuted(call).catch(() => undefined);
+                }}
+                onShowInCallScreen={showDialpad => {
+                  showInCallScreen(showDialpad).catch(() => undefined);
+                }}
+                onUseRecentNumber={setDialerNumber}
+              />
             ) : (
               <GatewayScreen
                 status={status}
@@ -688,9 +913,15 @@ function App(): React.JSX.Element {
                 enabled={enabled}
                 onToggleEnabled={onToggleEnabled}
                 onRequestRole={requestSmsRole}
+                onRequestDialerRole={requestDialerRole}
                 onRequestPermissions={() => {
                   requestSmsPermissions().catch(error => {
                     Alert.alert('SMS permissions', String(error));
+                  });
+                }}
+                onRequestDialerPermissions={() => {
+                  requestDialerPermissions().catch(error => {
+                    Alert.alert('Call permissions', String(error));
                   });
                 }}
                 onRequestNotifications={() => {
@@ -711,9 +942,21 @@ function App(): React.JSX.Element {
             )}
 
             <BottomTabBar
-              active={screen.name === 'gateway' ? 'gateway' : 'messages'}
+              active={
+                screen.name === 'gateway'
+                  ? 'gateway'
+                  : screen.name === 'calls'
+                    ? 'calls'
+                    : 'messages'
+              }
               onChange={tab =>
-                setScreen(tab === 'gateway' ? {name: 'gateway'} : {name: 'messages'})
+                setScreen(
+                  tab === 'gateway'
+                    ? {name: 'gateway'}
+                    : tab === 'calls'
+                      ? {name: 'calls'}
+                      : {name: 'messages'},
+                )
               }
             />
           </View>
