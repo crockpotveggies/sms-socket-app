@@ -326,6 +326,8 @@ class GatewayMessageRepository(private val context: Context) {
           )
         val box = cursor.getInt(messageBoxIndex)
         val mType = if (messageTypeIndex >= 0) cursor.getInt(messageTypeIndex) else null
+        val timestampMs = mmsTimestamp(cursor, dateIndex, dateSentIndex)
+        val hasPdfAttachment = attachmentsContainMimeType(bodyAndAttachments.second, "application/pdf")
         val responseStatus = nullableInt(cursor, responseStatusIndex)
         val responseText = nullableString(cursor, responseTextIndex)
         val status = nullableInt(cursor, statusIndex)
@@ -340,6 +342,9 @@ class GatewayMessageRepository(private val context: Context) {
             status = status,
             retrieveStatus = retrieveStatus,
             retrieveText = retrieveText,
+            timestampMs = timestampMs,
+            nowMs = System.currentTimeMillis(),
+            hasPdfAttachment = hasPdfAttachment,
           )
 
         messages.add(
@@ -353,7 +358,7 @@ class GatewayMessageRepository(private val context: Context) {
             initials = initialsFor(displayName, address),
             body = bodyAndAttachments.first,
             subject = subject,
-            timestamp = mmsTimestamp(cursor, dateIndex, dateSentIndex),
+            timestamp = timestampMs,
             messageType = box,
             read = cursor.getInt(readIndex) == 1,
             status = statusSummary.statusCode,
@@ -612,6 +617,16 @@ class GatewayMessageRepository(private val context: Context) {
         "SMS send failed${status?.let { " with status $it" } ?: ""}."
       else -> null
     }
+
+  private fun attachmentsContainMimeType(attachments: JSONArray, mimeType: String): Boolean {
+    for (index in 0 until attachments.length()) {
+      val attachment = attachments.optJSONObject(index) ?: continue
+      if (attachment.optString("mimeType").equals(mimeType, ignoreCase = true)) {
+        return true
+      }
+    }
+    return false
+  }
 
   private fun lookupDisplayName(address: String): String {
     if (address.isBlank()) {

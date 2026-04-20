@@ -39,6 +39,9 @@ class MmsStatusSupportTest {
         status = null,
         retrieveStatus = null,
         retrieveText = null,
+        timestampMs = 1_000L,
+        nowMs = 2_000L,
+        hasPdfAttachment = true,
       )
 
     assertEquals("rejected", summary.deliveryState)
@@ -58,6 +61,9 @@ class MmsStatusSupportTest {
         status = null,
         retrieveStatus = null,
         retrieveText = null,
+        timestampMs = 10_000L,
+        nowMs = 20_000L,
+        hasPdfAttachment = false,
       )
     assertEquals("pending", pending.deliveryState)
     assertNull(pending.failureReason)
@@ -71,8 +77,32 @@ class MmsStatusSupportTest {
         status = 0x80,
         retrieveStatus = null,
         retrieveText = null,
+        timestampMs = 10_000L,
+        nowMs = 20_000L,
+        hasPdfAttachment = false,
       )
     assertEquals("delivered", delivered.deliveryState)
     assertEquals(true, delivered.carrierAccepted)
+  }
+
+  @Test
+  fun `marks stale pending pdf mms as failed with a carrier support hint`() {
+    val summary =
+      MmsStatusSupport.fromProvider(
+        messageBox = Telephony.Mms.MESSAGE_BOX_OUTBOX,
+        messageType = 128,
+        responseStatus = null,
+        responseText = null,
+        status = null,
+        retrieveStatus = null,
+        retrieveText = null,
+        timestampMs = 0L,
+        nowMs = 16 * 60 * 1000L,
+        hasPdfAttachment = true,
+      )
+
+    assertEquals("failed", summary.deliveryState)
+    assertEquals(false, summary.carrierAccepted)
+    assertTrue(summary.failureReason?.contains("PDF attachments") == true)
   }
 }

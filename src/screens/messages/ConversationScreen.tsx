@@ -221,6 +221,11 @@ export function ConversationScreen({
           {attachment ? (
             <View style={styles.composerAttachmentWrap}>
               {renderAttachmentPreview(attachment, false)}
+              {attachment.mimeType === 'application/pdf' ? (
+                <Text style={styles.attachmentWarningText}>
+                  PDF MMS support varies by carrier and may fail even when images work.
+                </Text>
+              ) : null}
               <Pressable
                 onPress={onClearAttachment}
                 style={styles.attachmentRemoveButton}>

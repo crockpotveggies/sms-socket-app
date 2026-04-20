@@ -214,4 +214,36 @@ describe('ConversationScreen', () => {
     expect(tree).toContain('Carrier rejected this MMS');
     expect(tree).toContain('Carrier rejected the attachment or content in this MMS.');
   });
+
+  it('shows a PDF carrier-compatibility warning in the composer preview', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <ConversationScreen
+          title="Taylor"
+          subtitle="+15551234567"
+          address="+15551234567"
+          body=""
+          attachment={pdfAttachment}
+          loading={false}
+          refreshing={false}
+          sending={false}
+          messages={[]}
+          onBack={jest.fn()}
+          onChangeAddress={jest.fn()}
+          onChangeBody={jest.fn()}
+          onPickAttachment={jest.fn()}
+          onClearAttachment={jest.fn()}
+          onSend={jest.fn()}
+          editableAddress={false}
+        />,
+      );
+    });
+
+    const tree = JSON.stringify(renderer!.toJSON());
+    expect(tree).toContain(
+      'PDF MMS support varies by carrier and may fail even when images work.',
+    );
+  });
 });

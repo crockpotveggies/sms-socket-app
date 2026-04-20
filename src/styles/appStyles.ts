@@ -541,6 +541,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  attachmentWarningText: {
+    color: '#f6bd60',
+    fontSize: 12,
+    lineHeight: 18,
+  },
   attachmentRemoveButtonText: {
     color: '#dfe8f0',
     fontWeight: '700',

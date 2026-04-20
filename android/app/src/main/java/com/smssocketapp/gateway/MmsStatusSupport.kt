@@ -15,6 +15,7 @@ object MmsStatusSupport {
   private const val MMS_STATUS_OK = 0x80
   private const val MMS_STATUS_TRANSIENT_ERROR_START = 0xC0
   private const val MMS_STATUS_PERMANENT_ERROR_START = 0xE0
+  private const val STALE_PENDING_MS = 15 * 60 * 1000L
 
   fun fromSendResultCode(resultCode: Int): MmsStatusSummary =
     when (resultCode) {
@@ -120,6 +121,9 @@ object MmsStatusSupport {
     status: Int?,
     retrieveStatus: Int?,
     retrieveText: String?,
+    timestampMs: Long,
+    nowMs: Long,
+    hasPdfAttachment: Boolean,
   ): MmsStatusSummary {
     val normalizedResponseText = responseText?.trim().orEmpty()
     val normalizedRetrieveText = retrieveText?.trim().orEmpty()
@@ -152,6 +156,20 @@ object MmsStatusSupport {
         deliveryState = if (rejected) "rejected" else "failed",
         carrierAccepted = if (rejected) false else null,
         failureReason = failureReason,
+        statusCode = statusCode,
+      )
+    }
+
+    if (messageBox == Telephony.Mms.MESSAGE_BOX_OUTBOX && nowMs - timestampMs >= STALE_PENDING_MS) {
+      return MmsStatusSummary(
+        deliveryState = "failed",
+        carrierAccepted = false,
+        failureReason =
+          if (hasPdfAttachment) {
+            "This MMS has been stuck in outbox for over 15 minutes. The carrier or device may not support PDF attachments over MMS."
+          } else {
+            "This MMS has been stuck in outbox for over 15 minutes without carrier confirmation."
+          },
         statusCode = statusCode,
       )
     }
