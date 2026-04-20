@@ -1,141 +1,147 @@
 import React from 'react';
-import {Pressable, ScrollView, Text, View} from 'react-native';
+import {Pressable, Text, View} from 'react-native';
 
-import {DialerRecentCall, GatewayStatus} from '../../SmsGateway';
-import {ActionButton} from '../../components/ActionButton';
-import {LabeledInput} from '../../components/LabeledInput';
+import {GatewayStatus} from '../../SmsGateway';
 import {styles} from '../../styles/appStyles';
 
 const DIAL_PAD_ROWS = [
-  ['1', '2', '3'],
-  ['4', '5', '6'],
-  ['7', '8', '9'],
-  ['*', '0', '#'],
+  [
+    {digit: '1', letters: ''},
+    {digit: '2', letters: 'ABC'},
+    {digit: '3', letters: 'DEF'},
+  ],
+  [
+    {digit: '4', letters: 'GHI'},
+    {digit: '5', letters: 'JKL'},
+    {digit: '6', letters: 'MNO'},
+  ],
+  [
+    {digit: '7', letters: 'PQRS'},
+    {digit: '8', letters: 'TUV'},
+    {digit: '9', letters: 'WXYZ'},
+  ],
+  [
+    {digit: '*', letters: ''},
+    {digit: '0', letters: '+'},
+    {digit: '#', letters: ''},
+  ],
 ];
 
 export function DialerScreen({
   status,
   number,
-  recentCalls,
-  recentCallsLoading,
-  onChangeNumber,
   onPressDigit,
   onBackspace,
   onPlaceCall,
   onRequestRole,
   onRequestPermissions,
-  onUseRecentNumber,
 }: {
   status: GatewayStatus | null;
   number: string;
-  recentCalls: DialerRecentCall[];
-  recentCallsLoading: boolean;
   onChangeNumber: (value: string) => void;
   onPressDigit: (digit: string) => void;
   onBackspace: () => void;
   onPlaceCall: () => void;
   onRequestRole: () => void;
   onRequestPermissions: () => void;
-  onUseRecentNumber: (number: string) => void;
 }) {
   const dialerControlReady =
     Boolean(status?.dialerRoleGranted) &&
     !status?.dialerMissingPermissions.some(
       permission => permission !== 'android.permission.READ_CALL_LOG',
     );
-  const hasRecentCallAccess =
-    Boolean(status) &&
-    !status!.dialerMissingPermissions.includes('android.permission.READ_CALL_LOG');
+  const showPermissionStrip =
+    status?.dialerRoleGranted === false || Boolean(status?.dialerMissingPermissions.length);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Dialer</Text>
-        <Text style={styles.detailText}>
-          Keypad entry for PSTN outbound calls using Android Telecom.
-        </Text>
-        {status?.dialerRoleGranted === false || !dialerControlReady ? (
-          <View style={styles.actionRow}>
+    <View style={styles.dialerScreen}>
+      <View style={styles.dialerGlowLarge} />
+      <View style={styles.dialerGlowSmall} />
+
+      {showPermissionStrip ? (
+        <View style={styles.dialerAlertCard}>
+          <Text style={styles.dialerAlertTitle}>Dialer setup still needs attention</Text>
+          <View style={styles.dialerAlertActions}>
             {status?.dialerRoleGranted === false ? (
-              <ActionButton label="Request dialer role" onPress={onRequestRole} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={onRequestRole}
+                style={styles.dialerAlertButton}>
+                <Text style={styles.dialerAlertButtonText}>Request role</Text>
+              </Pressable>
             ) : null}
             {Boolean(status?.dialerMissingPermissions.length) ? (
-              <ActionButton label="Call permissions" onPress={onRequestPermissions} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={onRequestPermissions}
+                style={styles.dialerAlertButton}>
+                <Text style={styles.dialerAlertButtonText}>Permissions</Text>
+              </Pressable>
             ) : null}
           </View>
-        ) : null}
+        </View>
+      ) : null}
+
+      <View style={styles.dialerNumberCard}>
+        <Text style={number.trim() ? styles.dialerNumber : styles.dialerNumberPlaceholder}>
+          {number.trim() || 'Enter number'}
+        </Text>
+        <Text style={styles.dialerNumberHint}>
+          {dialerControlReady
+            ? 'Ready to place a PSTN call'
+            : 'Dialer controls unlock once role and permissions are ready'}
+        </Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Phone keypad</Text>
-        <LabeledInput
-          label="Number"
-          value={number}
-          onChangeText={onChangeNumber}
-          placeholder="Enter a phone number"
-          keyboardType="phone-pad"
-        />
-        <View style={styles.dialPad}>
+      <View style={styles.dialerPadCard}>
+        <View style={styles.dialerPadGrid}>
           {DIAL_PAD_ROWS.map(row => (
-            <View key={row.join('')} style={styles.dialPadRow}>
-              {row.map(digit => (
+            <View key={row.map(item => item.digit).join('')} style={styles.dialerPadRowLarge}>
+              {row.map(item => (
                 <Pressable
-                  key={digit}
+                  key={item.digit}
                   accessibilityRole="button"
-                  onPress={() => onPressDigit(digit)}
-                  style={styles.dialPadKey}>
-                  <Text style={styles.dialPadKeyText}>{digit}</Text>
+                  onPress={() => onPressDigit(item.digit)}
+                  style={styles.dialerPadKeyLarge}>
+                  <Text style={styles.dialerPadKeyDigit}>{item.digit}</Text>
+                  <Text style={styles.dialerPadKeyLetters}>{item.letters}</Text>
                 </Pressable>
               ))}
             </View>
           ))}
         </View>
-        <View style={styles.actionRow}>
-          <ActionButton
-            label="Backspace"
+
+        <View style={styles.dialerBottomRow}>
+          <Pressable
+            accessibilityRole="button"
             onPress={onBackspace}
-            tone="secondary"
-            disabled={number.length === 0}
-          />
-          <ActionButton
-            label="Place call"
-            onPress={onPlaceCall}
+            style={styles.dialerBackspaceButton}>
+            <Text style={styles.dialerBackspaceButtonText}>Backspace</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             disabled={!dialerControlReady || number.trim().length === 0}
-          />
+            onPress={onPlaceCall}
+            style={[
+              styles.dialerCallButton,
+              !dialerControlReady || number.trim().length === 0
+                ? styles.dialerCallButtonDisabled
+                : null,
+            ]}>
+            <PhoneGlyph color="#ffffff" />
+          </Pressable>
+          <View style={styles.dialerBottomSpacer} />
         </View>
       </View>
+    </View>
+  );
+}
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Quick dial</Text>
-        {!hasRecentCallAccess ? (
-          <Text style={styles.detailText}>
-            Grant call-log access to populate recent-number shortcuts here.
-          </Text>
-        ) : recentCallsLoading ? (
-          <Text style={styles.detailText}>Loading recent calls...</Text>
-        ) : recentCalls.length === 0 ? (
-          <Text style={styles.detailText}>No recent numbers available yet.</Text>
-        ) : (
-          recentCalls.slice(0, 8).map(call => (
-            <Pressable
-              key={call.id}
-              accessibilityRole="button"
-              onPress={() => onUseRecentNumber(call.number)}
-              style={styles.recentCallRow}>
-              <View style={styles.flex}>
-                <Text style={styles.callCardTitle}>
-                  {call.displayName || call.number || 'Unknown caller'}
-                </Text>
-                <Text style={styles.detailText}>
-                  {call.number || 'Number unavailable'} {'\n'}
-                  {new Date(call.timestamp).toLocaleString()}
-                </Text>
-              </View>
-              <Text style={styles.recentCallUse}>Fill</Text>
-            </Pressable>
-          ))
-        )}
-      </View>
-    </ScrollView>
+function PhoneGlyph({color}: {color: string}) {
+  return (
+    <View style={styles.dialerPhoneGlyph}>
+      <View style={[styles.dialerPhoneGlyphArc, {borderColor: color}]} />
+      <View style={[styles.dialerPhoneGlyphHandle, {backgroundColor: color}]} />
+    </View>
   );
 }

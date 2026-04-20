@@ -480,6 +480,7 @@ class SmsGatewayModule(
     }
 
     try {
+      Log.i(TAG, "RN command placeCall number=$number speakerphone=$speakerphone")
       promise.resolve(
         JsonBridge.toWritableMap(
           GatewayDialerManager.placeCall(reactContext, number, speakerphone),
@@ -499,6 +500,7 @@ class SmsGatewayModule(
     }
 
     try {
+      Log.i(TAG, "RN command answerCall callId=$callId")
       promise.resolve(GatewayDialerManager.answerCall(reactContext, callId))
     } catch (error: Exception) {
       promise.reject("CALL_ANSWER_FAILED", error.message, error)
@@ -514,6 +516,7 @@ class SmsGatewayModule(
     }
 
     try {
+      Log.i(TAG, "RN command rejectCall callId=$callId")
       promise.resolve(GatewayDialerManager.rejectCall(reactContext, callId))
     } catch (error: Exception) {
       promise.reject("CALL_REJECT_FAILED", error.message, error)
@@ -529,6 +532,7 @@ class SmsGatewayModule(
     }
 
     try {
+      Log.i(TAG, "RN command endCall callId=$callId")
       promise.resolve(GatewayDialerManager.endCall(reactContext, callId))
     } catch (error: Exception) {
       promise.reject("CALL_END_FAILED", error.message, error)
@@ -544,6 +548,7 @@ class SmsGatewayModule(
     }
 
     try {
+      Log.i(TAG, "RN command setMuted callId=$callId muted=${request.getBoolean("muted")}")
       promise.resolve(
         GatewayDialerManager.setMuted(reactContext, callId, request.getBoolean("muted")),
       )
@@ -562,6 +567,7 @@ class SmsGatewayModule(
     }
 
     try {
+      Log.i(TAG, "RN command sendDtmf callId=$callId digits=$digits")
       promise.resolve(
         JsonBridge.toWritableMap(GatewayDialerManager.sendDtmf(reactContext, callId, digits)),
       )
@@ -576,6 +582,7 @@ class SmsGatewayModule(
       if (request.hasKey("showDialpad")) request.getBoolean("showDialpad") else false
 
     try {
+      Log.i(TAG, "RN command showInCallScreen showDialpad=$showDialpad")
       promise.resolve(GatewayDialerManager.showInCallScreen(reactContext, showDialpad))
     } catch (error: Exception) {
       promise.reject("CALL_UI_FAILED", error.message, error)

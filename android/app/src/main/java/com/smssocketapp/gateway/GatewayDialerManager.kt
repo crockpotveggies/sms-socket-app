@@ -9,6 +9,7 @@ import android.telecom.CallAudioState
 import android.telecom.InCallService
 import android.telecom.TelecomManager
 import android.telecom.VideoProfile
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.ref.WeakReference
@@ -49,13 +50,19 @@ object GatewayDialerManager {
   @Synchronized
   fun onCallAdded(call: Call) {
     val callId = callIds.idFor(call)
+    Log.i(TAG, "call added callId=$callId state=${GatewayCallStateMapper.normalizeState(call.state)}")
     val callback =
       object : Call.Callback() {
         override fun onStateChanged(call: Call, state: Int) {
+          Log.i(
+            TAG,
+            "call state changed callId=${callIds.idFor(call)} state=${GatewayCallStateMapper.normalizeState(state)}",
+          )
           emitCallEvent("call.updated", call)
         }
 
         override fun onDetailsChanged(call: Call, details: Call.Details) {
+          Log.i(TAG, "call details changed callId=${callIds.idFor(call)}")
           emitCallEvent("call.updated", call)
         }
 
@@ -78,6 +85,10 @@ object GatewayDialerManager {
   @Synchronized
   fun onCallRemoved(call: Call) {
     val snapshot = snapshotFor(call)
+    Log.i(
+      TAG,
+      "call removed callId=${callIds.idFor(call)} state=${GatewayCallStateMapper.normalizeState(call.state)}",
+    )
     callbacks.remove(call)?.let(call::unregisterCallback)
     callsById.remove(callIds.idFor(call))
     callIds.remove(call)
@@ -154,6 +165,7 @@ object GatewayDialerManager {
       Bundle().apply {
         putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, speakerphone)
       }
+    Log.i(TAG, "dialer placeCall number=$sanitizedNumber speakerphone=$speakerphone")
     telecomManager.placeCall(Uri.fromParts("tel", sanitizedNumber, null), extras)
 
     return JSONObject()
@@ -169,6 +181,7 @@ object GatewayDialerManager {
     ensureDialerRole(context)
     ensureAnswerPermissions(context)
     val call = requireCall(callId)
+    Log.i(TAG, "dialer answerCall callId=$callId")
     call.answer(VideoProfile.STATE_AUDIO_ONLY)
     return true
   }
@@ -179,6 +192,7 @@ object GatewayDialerManager {
   ): Boolean {
     ensureDialerRole(context)
     val call = requireCall(callId)
+    Log.i(TAG, "dialer rejectCall callId=$callId")
     call.reject(false, null)
     return true
   }
@@ -189,6 +203,7 @@ object GatewayDialerManager {
   ): Boolean {
     ensureDialerRole(context)
     val call = requireCall(callId)
+    Log.i(TAG, "dialer endCall callId=$callId")
     call.disconnect()
     return true
   }
@@ -201,6 +216,7 @@ object GatewayDialerManager {
     ensureDialerRole(context)
     requireCall(callId)
     val service = inCallServiceRef?.get() ?: throw IllegalStateException("In-call service unavailable.")
+    Log.i(TAG, "dialer setMuted callId=$callId muted=$shouldMute")
     service.setMuted(shouldMute)
     muted = shouldMute
     emitDialerState()
@@ -213,6 +229,7 @@ object GatewayDialerManager {
     digits: String,
   ): JSONObject {
     ensureDialerRole(context)
+    Log.i(TAG, "dialer sendDtmf callId=$callId digits=$digits")
     return dispatchDtmf(
       callId = callId,
       digits = digits,
@@ -227,6 +244,7 @@ object GatewayDialerManager {
     ensureDialerRole(context)
     val telecomManager = context.getSystemService(TelecomManager::class.java)
       ?: throw IllegalStateException("Telecom service unavailable.")
+    Log.i(TAG, "dialer showInCallScreen showDialpad=$showDialpad")
     telecomManager.showInCallScreen(showDialpad)
     return true
   }
@@ -350,4 +368,6 @@ object GatewayDialerManager {
       call.stopDtmfTone()
     }
   }
+
+  private const val TAG = "GatewayDialer"
 }

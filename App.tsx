@@ -29,6 +29,7 @@ import {AppHeader} from './src/components/AppHeader';
 import {BottomTabBar} from './src/components/BottomTabBar';
 import {CallsScreen} from './src/screens/calls/CallsScreen';
 import {DialerScreen} from './src/screens/calls/DialerScreen';
+import {InCallScreen} from './src/screens/calls/InCallScreen';
 import {GatewayScreen} from './src/screens/gateway/GatewayScreen';
 import {ConversationScreen} from './src/screens/messages/ConversationScreen';
 import {MessagesHome} from './src/screens/messages/MessagesHome';
@@ -41,6 +42,7 @@ type ScreenState =
   | {name: 'messages'}
   | {name: 'calls'}
   | {name: 'dialer'}
+  | {name: 'inCall'}
   | {name: 'gateway'}
   | {
       name: 'conversation';
@@ -70,6 +72,8 @@ function App(): React.JSX.Element {
   const [searchVisible, setSearchVisible] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [dialerNumber, setDialerNumber] = useState('');
+  const [inCallDigits, setInCallDigits] = useState('');
+  const [inCallDialpadVisible, setInCallDialpadVisible] = useState(false);
   const [composerBody, setComposerBody] = useState('');
   const [composerAttachment, setComposerAttachment] =
     useState<GatewayAttachment | null>(null);
@@ -87,12 +91,14 @@ function App(): React.JSX.Element {
     }
 
     if (request.screen === 'calls') {
-      setScreen({name: 'calls'});
+      setInCallDialpadVisible(Boolean(request.showDialpad));
+      setScreen({name: 'inCall'});
       return;
     }
 
     if (request.screen === 'dialer') {
-      setScreen({name: 'dialer'});
+      setInCallDialpadVisible(true);
+      setScreen({name: 'inCall'});
     }
   }, []);
 
@@ -199,11 +205,46 @@ function App(): React.JSX.Element {
     status &&
       !status.dialerMissingPermissions.includes('android.permission.READ_CALL_LOG'),
   );
-  const onCallSurface = screen.name === 'calls' || screen.name === 'dialer';
+  const activeCalls = status?.activeCalls ?? [];
+  const primaryCall = useMemo(() => {
+    return (
+      activeCalls.find(call => call.state === 'ringing') ??
+      activeCalls.find(call => call.state === 'active') ??
+      activeCalls.find(call => call.state === 'dialing' || call.state === 'connecting') ??
+      activeCalls[0] ??
+      null
+    );
+  }, [activeCalls]);
+
+  const onCallSurface =
+    screen.name === 'calls' || screen.name === 'dialer' || screen.name === 'inCall';
 
   useEffect(() => {
     dialerRecentCallsEnabledRef.current = canReadRecentCalls;
   }, [canReadRecentCalls]);
+
+  useEffect(() => {
+    setInCallDigits('');
+    if (primaryCall?.state === 'ringing') {
+      setInCallDialpadVisible(false);
+    }
+  }, [primaryCall?.callId, primaryCall?.state]);
+
+  useEffect(() => {
+    if (gatewayLoading || screen.name !== 'inCall' || activeCalls.length > 0) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (activeConversationRef.current.name === 'inCall') {
+        setScreen({name: 'calls'});
+        setInCallDialpadVisible(false);
+        setInCallDigits('');
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [activeCalls.length, gatewayLoading, screen.name]);
 
   useEffect(() => {
     const subscription = SmsGateway.addListener(
@@ -776,7 +817,9 @@ function App(): React.JSX.Element {
       }
 
       await SmsGateway.placeCall({number});
-      setScreen({name: 'calls'});
+      setInCallDialpadVisible(false);
+      setInCallDigits('');
+      setScreen({name: 'inCall'});
     } catch (error) {
       Alert.alert('Call failed', String(error));
     }
@@ -785,6 +828,7 @@ function App(): React.JSX.Element {
   const answerCall = async (call: DialerCall) => {
     try {
       await SmsGateway.answerCall({callId: call.callId});
+      setScreen({name: 'inCall'});
     } catch (error) {
       Alert.alert('Answer failed', String(error));
     }
@@ -817,9 +861,23 @@ function App(): React.JSX.Element {
   const showInCallScreen = async (showDialpad = false) => {
     try {
       await SmsGateway.showInCallScreen({showDialpad});
-      setScreen({name: 'calls'});
+      setInCallDialpadVisible(showDialpad);
+      setScreen({name: 'inCall'});
     } catch (error) {
       Alert.alert('In-call UI failed', String(error));
+    }
+  };
+
+  const sendDtmfDigit = async (digit: string) => {
+    if (!primaryCall || primaryCall.state !== 'active') {
+      return;
+    }
+
+    try {
+      await SmsGateway.sendDtmf({callId: primaryCall.callId, digits: digit});
+      setInCallDigits(current => `${current}${digit}`.slice(-24));
+    } catch (error) {
+      Alert.alert('DTMF failed', String(error));
     }
   };
 
@@ -863,32 +921,32 @@ function App(): React.JSX.Element {
           />
         ) : (
           <View style={styles.root}>
-            <AppHeader
-              title={
-                screen.name === 'gateway'
-                  ? 'Gateway'
-                  : screen.name === 'dialer'
-                    ? 'Dialer'
-                  : screen.name === 'calls'
-                    ? 'Calls'
+            {screen.name === 'inCall' || screen.name === 'dialer' ? null : (
+              <AppHeader
+                title={
+                  screen.name === 'gateway'
+                    ? 'Gateway'
+                    : screen.name === 'calls'
+                      ? 'Calls'
                     : 'SMS Socket'
-              }
-              searchVisible={screen.name === 'messages' ? searchVisible : false}
-              searchQuery={searchQuery}
-              onToggleSearch={
-                screen.name === 'messages'
-                  ? () => {
-                      if (searchVisible) {
-                        setSearchVisible(false);
-                        setSearchQuery('');
-                        return;
+                }
+                searchVisible={screen.name === 'messages' ? searchVisible : false}
+                searchQuery={searchQuery}
+                onToggleSearch={
+                  screen.name === 'messages'
+                    ? () => {
+                        if (searchVisible) {
+                          setSearchVisible(false);
+                          setSearchQuery('');
+                          return;
+                        }
+                        setSearchVisible(true);
                       }
-                      setSearchVisible(true);
-                    }
-                  : undefined
-              }
-              onChangeSearch={screen.name === 'messages' ? setSearchQuery : undefined}
-            />
+                    : undefined
+                }
+                onChangeSearch={screen.name === 'messages' ? setSearchQuery : undefined}
+              />
+            )}
             {screen.name === 'messages' ? (
               <View style={styles.flex}>
                 <MessagesHome
@@ -940,12 +998,43 @@ function App(): React.JSX.Element {
                 }}
                 onUseRecentNumber={setDialerNumber}
               />
+            ) : screen.name === 'inCall' ? (
+              <InCallScreen
+                call={primaryCall}
+                digits={inCallDigits}
+                dialpadVisible={inCallDialpadVisible}
+                onToggleDialpad={() => {
+                  setInCallDialpadVisible(current => !current);
+                }}
+                onPressDigit={digit => {
+                  sendDtmfDigit(digit).catch(() => undefined);
+                }}
+                onBackspace={() => {
+                  setInCallDigits(current => current.slice(0, Math.max(0, current.length - 1)));
+                }}
+                onAnswerCall={call => {
+                  answerCall(call).catch(() => undefined);
+                }}
+                onRejectCall={call => {
+                  rejectCall(call).catch(() => undefined);
+                }}
+                onEndCall={call => {
+                  endCall(call).catch(() => undefined);
+                }}
+                onToggleMute={call => {
+                  toggleMuted(call).catch(() => undefined);
+                }}
+                onShowSystemUi={showDialpad => {
+                  showInCallScreen(showDialpad).catch(() => undefined);
+                }}
+                onReturnToCalls={() => {
+                  setScreen({name: 'calls'});
+                }}
+              />
             ) : screen.name === 'dialer' ? (
               <DialerScreen
                 status={status}
                 number={dialerNumber}
-                recentCalls={recentCalls}
-                recentCallsLoading={recentCallsLoading}
                 onChangeNumber={setDialerNumber}
                 onPressDigit={digit => setDialerNumber(current => `${current}${digit}`)}
                 onBackspace={() =>
@@ -962,7 +1051,6 @@ function App(): React.JSX.Element {
                     Alert.alert('Call permissions', String(error));
                   });
                 }}
-                onUseRecentNumber={setDialerNumber}
               />
             ) : (
               <GatewayScreen
@@ -1005,28 +1093,30 @@ function App(): React.JSX.Element {
               />
             )}
 
-            <BottomTabBar
-              active={
-                screen.name === 'gateway'
-                  ? 'gateway'
-                  : screen.name === 'dialer'
-                    ? 'dialer'
-                  : screen.name === 'calls'
-                    ? 'calls'
-                    : 'messages'
-              }
-              onChange={tab =>
-                setScreen(
-                  tab === 'gateway'
-                    ? {name: 'gateway'}
-                    : tab === 'dialer'
-                      ? {name: 'dialer'}
-                    : tab === 'calls'
-                      ? {name: 'calls'}
-                      : {name: 'messages'},
-                )
-              }
-            />
+            {screen.name === 'inCall' ? null : (
+              <BottomTabBar
+                active={
+                  screen.name === 'gateway'
+                    ? 'gateway'
+                    : screen.name === 'dialer'
+                      ? 'dialer'
+                    : screen.name === 'calls'
+                      ? 'calls'
+                      : 'messages'
+                }
+                onChange={tab =>
+                  setScreen(
+                    tab === 'gateway'
+                      ? {name: 'gateway'}
+                      : tab === 'dialer'
+                        ? {name: 'dialer'}
+                      : tab === 'calls'
+                        ? {name: 'calls'}
+                        : {name: 'messages'},
+                  )
+                }
+              />
+            )}
           </View>
         )}
       </SafeAreaView>

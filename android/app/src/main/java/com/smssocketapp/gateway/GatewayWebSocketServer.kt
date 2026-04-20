@@ -1,6 +1,7 @@
 package com.smssocketapp.gateway
 
 import android.content.Context
+import android.util.Log
 import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
@@ -19,10 +20,15 @@ class GatewayWebSocketServer(
     Collections.synchronizedSet(mutableSetOf<WebSocket>())
 
   override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
+    Log.i(TAG, "socket open remote=${remoteLabel(conn)}")
     onConnectionChanged(connections.size)
   }
 
   override fun onClose(conn: WebSocket, code: Int, reason: String?, remote: Boolean) {
+    Log.i(
+      TAG,
+      "socket close remote=${remoteLabel(conn)} code=$code remoteInitiated=$remote reason=${reason ?: ""}",
+    )
     authenticatedConnections.remove(conn)
     onConnectionChanged(connections.size)
   }
@@ -36,6 +42,7 @@ class GatewayWebSocketServer(
       val payload = request.optJSONObject("payload") ?: JSONObject()
 
       if (type == "authenticate") {
+        Log.i(TAG, "command authenticate requestId=$requestId remote=${remoteLabel(conn)}")
         if (authValidator(auth)) {
           authenticatedConnections.add(conn)
           sendResponse(conn, requestId, true, JSONObject().put("authenticated", true))
@@ -52,9 +59,14 @@ class GatewayWebSocketServer(
         return
       }
       authenticatedConnections.add(conn)
+      logCommand(conn, type, requestId)
 
       val validation = GatewayCommandParser.validate(type, payload)
       if (!validation.ok) {
+        Log.w(
+          TAG,
+          "command rejected type=$type requestId=$requestId remote=${remoteLabel(conn)} error=${validation.error ?: "Invalid request"}",
+        )
         sendResponse(
           conn,
           requestId,
@@ -256,6 +268,7 @@ class GatewayWebSocketServer(
   }
 
   override fun onError(conn: WebSocket?, ex: Exception) {
+    Log.e(TAG, "socket error remote=${remoteLabel(conn)}", ex)
     onEvent(
       "gateway.error",
       JSONObject().put("message", ex.message ?: "Unknown socket error"),
@@ -263,6 +276,7 @@ class GatewayWebSocketServer(
   }
 
   override fun onStart() {
+    Log.i(TAG, "server listening host=${address.hostString} port=${address.port}")
     onEvent(
       "gateway.event",
       JSONObject().put("message", "WebSocket server listening on ${address.hostString}:${address.port}"),
@@ -301,5 +315,23 @@ class GatewayWebSocketServer(
         socket.send(message)
       }
     }
+  }
+
+  private fun logCommand(
+    conn: WebSocket,
+    type: String,
+    requestId: String,
+  ) {
+    Log.i(
+      TAG,
+      "command type=$type requestId=$requestId remote=${remoteLabel(conn)}",
+    )
+  }
+
+  private fun remoteLabel(conn: WebSocket?): String =
+    conn?.remoteSocketAddress?.toString() ?: "unknown"
+
+  companion object {
+    private const val TAG = "GatewayWebSocket"
   }
 }
