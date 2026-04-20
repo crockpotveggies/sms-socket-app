@@ -23,6 +23,7 @@ class GatewayClient:
         self._pending: dict[str, asyncio.Future[JsonDict]] = {}
         self._write_lock = asyncio.Lock()
         self._authenticated = False
+        self._api_key: str | None = None
 
     @property
     def connected(self) -> bool:
@@ -32,11 +33,22 @@ class GatewayClient:
     def authenticated(self) -> bool:
         return self._authenticated
 
-    async def connect(self, url: str) -> None:
+    async def connect(self, url: str, api_key: str | None = None) -> None:
+        if api_key is not None:
+            normalized = api_key.strip()
+            self._api_key = normalized or None
+        if not self._api_key:
+            raise ValueError("API key required. Run 'auth <api-key>' first or pass one to connect.")
+
         await self.close()
-        self._socket = await websockets.connect(url)
+        self._socket = await websockets.connect(
+            url,
+            additional_headers={
+                "Authorization": f"Bearer {self._api_key}",
+            },
+        )
         self._receiver_task = asyncio.create_task(self._receiver_loop())
-        self._authenticated = False
+        self._authenticated = True
 
     async def close(self) -> None:
         self._authenticated = False
@@ -56,11 +68,6 @@ class GatewayClient:
             if not future.done():
                 future.set_exception(ConnectionError("Socket connection closed"))
         self._pending.clear()
-
-    async def authenticate(self, api_key: str) -> JsonDict:
-        response = await self.send_command("authenticate", auth=api_key)
-        self._authenticated = bool(response.get("payload", {}).get("authenticated"))
-        return response
 
     async def request_state(self) -> JsonDict:
         return await self.send_command("getGatewayState")
@@ -100,7 +107,6 @@ class GatewayClient:
         self,
         command_type: str,
         payload: JsonDict | None = None,
-        auth: str | None = None,
     ) -> JsonDict:
         if self._socket is None:
             raise ConnectionError("Not connected")
@@ -112,8 +118,6 @@ class GatewayClient:
         }
         if payload is not None:
             request["payload"] = payload
-        if auth is not None:
-            request["auth"] = auth
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future[JsonDict] = loop.create_future()

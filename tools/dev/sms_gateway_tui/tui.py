@@ -82,12 +82,12 @@ class SmsGatewayTui:
             if args:
                 self._url = args[0]
             await self._client.connect(self._url)
-            print(f"[ok] connected to {self._url}")
+            print(f"[ok] connected to {self._url} with bearer auth")
             return False
         if command == "auth":
             self._require_args(args, 1, "auth <api-key>")
-            response = await self._client.authenticate(args[0])
-            self._print_response("authenticate", response)
+            await self._client.connect(self._url, args[0])
+            print(f"[ok] connected to {self._url} with bearer auth")
             return False
         if command == "state":
             response = await self._client.request_state()
@@ -167,8 +167,8 @@ class SmsGatewayTui:
 
     def _print_help(self) -> None:
         print("Available commands:")
-        print("  connect [ws-url]           Connect to the gateway websocket")
-        print("  auth <api-key>             Send AsyncAPI authenticate")
+        print("  auth <api-key>             Connect with Authorization: Bearer <api-key>")
+        print("  connect [ws-url]           Connect using the stored bearer API key")
         print("  send <phone> <message> [subscription-id]")
         print("                             Send AsyncAPI sendSms")
         print("  sendmms <phone> <file-path> [message] [subscription-id]")

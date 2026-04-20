@@ -15,21 +15,22 @@ class GatewayWebSocketServer(
   private val authValidator: (String?) -> Boolean,
   private val onConnectionChanged: (Int) -> Unit,
   private val onEvent: (String, JSONObject) -> Unit,
-) : WebSocketServer(address, listOf(GatewayDraft6455())) {
+) : WebSocketServer(address, listOf(GatewayDraft6455(authValidator))) {
   private val authenticatedConnections =
     Collections.synchronizedSet(mutableSetOf<WebSocket>())
 
   override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
-    Log.i(TAG, "socket open remote=${remoteLabel(conn)}")
+    authenticatedConnections.add(conn)
+    Log.i(TAG, "socket open remote=${remoteLabel(conn)} openConnections=${connections.size}")
     onConnectionChanged(connections.size)
   }
 
   override fun onClose(conn: WebSocket, code: Int, reason: String?, remote: Boolean) {
+    authenticatedConnections.remove(conn)
     Log.i(
       TAG,
-      "socket close remote=${remoteLabel(conn)} code=$code remoteInitiated=$remote reason=${reason ?: ""}",
+      "socket close remote=${remoteLabel(conn)} code=$code remoteInitiated=$remote reason=${reason ?: ""} openConnections=${connections.size} authenticatedConnections=${authenticatedConnections.size}",
     )
-    authenticatedConnections.remove(conn)
     onConnectionChanged(connections.size)
   }
 
@@ -38,27 +39,7 @@ class GatewayWebSocketServer(
       val request = JSONObject(message)
       val type = request.optString("type")
       val requestId = request.optString("requestId")
-      val auth = if (request.has("auth") && !request.isNull("auth")) request.getString("auth") else null
       val payload = request.optJSONObject("payload") ?: JSONObject()
-
-      if (type == "authenticate") {
-        Log.i(TAG, "command authenticate requestId=$requestId remote=${remoteLabel(conn)}")
-        if (authValidator(auth)) {
-          authenticatedConnections.add(conn)
-          sendResponse(conn, requestId, true, JSONObject().put("authenticated", true))
-        } else {
-          sendResponse(conn, requestId, false, JSONObject().put("error", "Invalid API key"))
-          conn.close(4001, "Unauthorized")
-        }
-        return
-      }
-
-      val authenticated = authenticatedConnections.contains(conn) || authValidator(auth)
-      if (!authenticated) {
-        sendResponse(conn, requestId, false, JSONObject().put("error", "Unauthorized"))
-        return
-      }
-      authenticatedConnections.add(conn)
       logCommand(conn, type, requestId)
 
       val validation = GatewayCommandParser.validate(type, payload)

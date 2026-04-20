@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: SMS Socket App Gateway
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Local-only WebSocket API exposed by the Android foreground gateway service.
     SMS behavior remains backward compatible while MMS is added as an additive feature.
@@ -9,16 +9,18 @@ servers:
   localGateway:
     host: "{phoneIp}:8787"
     protocol: ws
-    description: Connect from the same LAN as the Android device.
+    description: |
+      Connect from the same LAN as the Android device.
+      Clients must send `Authorization: Bearer <api-key>` in the opening handshake.
     variables:
       phoneIp:
         default: 192.168.1.25
+    security:
+      - gatewayBearerAuth: []
 channels:
   gateway:
     address: /
     messages:
-      authenticate:
-        $ref: "#/components/messages/Authenticate"
       getGatewayState:
         $ref: "#/components/messages/GetGatewayState"
       requestDialerRole:
@@ -82,12 +84,6 @@ channels:
       gatewayState:
         $ref: "#/components/messages/GatewayState"
 operations:
-  sendAuthenticate:
-    action: send
-    channel:
-      $ref: "#/channels/gateway"
-    messages:
-      - $ref: "#/channels/gateway/messages/authenticate"
   sendCommand:
     action: send
     channel:
@@ -137,10 +133,6 @@ components:
         type:
           type: string
         requestId:
-          type:
-            - string
-            - "null"
-        auth:
           type:
             - string
             - "null"
@@ -411,15 +403,12 @@ components:
               - payload
       required:
         - events
+  securitySchemes:
+    gatewayBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key
   messages:
-    Authenticate:
-      payload:
-        allOf:
-          - $ref: "#/components/schemas/Envelope"
-          - type: object
-            properties:
-              type:
-                const: authenticate
     GetGatewayState:
       payload:
         allOf:

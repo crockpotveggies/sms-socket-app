@@ -55,7 +55,6 @@ def load_asyncapi_config(spec_path: Path | None = None) -> AsyncApiConfig:
 
     messages = spec["components"]["messages"]
     commands = {
-        "authenticate": AsyncApiCommand("authenticate", "Authenticate the websocket session."),
         "getGatewayState": AsyncApiCommand("getGatewayState", "Fetch gateway status."),
         "listSubscriptions": AsyncApiCommand("listSubscriptions", "List SIM subscriptions."),
         "rehydrate": AsyncApiCommand("rehydrate", "Request message history since a timestamp."),

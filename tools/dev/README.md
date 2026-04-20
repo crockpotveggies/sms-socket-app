@@ -4,7 +4,8 @@ Python TUI for the local SMS/MMS gateway websocket defined in [`docs/asyncapi.ym
 
 ## What It Does
 
-The TUI is a small operator console for the Android SMS gateway. It connects over websocket, authenticates with the gateway API key, sends AsyncAPI commands, and prints both command responses and pushed gateway events.
+The TUI is a small operator console for the Android SMS gateway. It connects over websocket with the gateway API key in a bearer-authenticated handshake, sends AsyncAPI commands, and prints both command responses and pushed gateway events.
+The API key is sent in the opening handshake as `Authorization: Bearer <api-key>`.
 
 Main use cases:
 
@@ -48,9 +49,10 @@ python -m tools.dev.sms_gateway_tui --url ws://192.168.1.25:8787/
 2. Confirm the phone IP and port, usually `8787`.
 3. Launch the TUI from the repository root.
 4. Authenticate with `auth <api-key>`.
-5. Run `state` to verify permissions, host, connection count, and recent events.
-6. Run `subscriptions` if you want to target a specific SIM.
-7. Send messages or request history.
+5. Run `connect [ws-url]` if you need to reconnect or switch endpoints with the stored key.
+6. Run `state` to verify permissions, host, connection count, and recent events.
+7. Run `subscriptions` if you want to target a specific SIM.
+8. Send messages or request history.
 
 Example session:
 
@@ -81,7 +83,7 @@ If `ws-url` is omitted, the console uses the AsyncAPI server default from `docs/
 
 ### `connect [ws-url]`
 
-Connect to the gateway websocket. If you omit `ws-url`, the console uses the default value from the AsyncAPI file.
+Connect to the gateway websocket using the stored bearer API key. If you omit `ws-url`, the console uses the default value from the AsyncAPI file.
 
 Examples:
 
@@ -92,7 +94,7 @@ connect ws://192.168.1.25:8787/
 
 ### `auth <api-key>`
 
-Authenticates the session by sending the AsyncAPI `authenticate` message. Most commands will fail until this succeeds.
+Stores the API key and reconnects the websocket using `Authorization: Bearer <api-key>` in the opening handshake.
 
 Example:
 
@@ -186,7 +188,7 @@ That means you can leave the console open after sending a message and watch deli
 
 - If `auth` fails, verify the API key shown in the Android app.
 - If `connect` fails, confirm the phone and workstation are on the same LAN and the gateway is running.
-- If `send` fails with an authorization or validation error, authenticate first and make sure both destination and message body are non-empty.
+- If `send` fails with an authorization or validation error, make sure the websocket was opened with the correct bearer API key and that both destination and message body are non-empty.
 - If `sendmms` fails, verify the file path exists locally, the file extension resolves to a supported MIME type, and the attachment stays within the gateway size limit.
 - If `history` is empty, try `history 0 100` to request the earliest available events.
 - If a device has multiple SIMs, run `subscriptions` and pass the correct `subscription-id` to `send`.

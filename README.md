@@ -37,7 +37,7 @@ Required user-facing setup:
 The server is local and cleartext by default. Typical message flow:
 
 1. Client connects to `ws://<phone-ip>:8787`.
-2. Client authenticates with `{"type":"authenticate","auth":"<api-key>"}`.
+2. Client includes `Authorization: Bearer <api-key>` in the opening WebSocket handshake.
 3. Client sends commands like `sendSms`, `sendMms`, `rehydrate`, `getGatewayState`, `listSubscriptions`, or `ack`.
 4. Server pushes events such as `sms.received`, `mms.received`, `sms.outbound.sent`, `mms.outbound.sent`, and `gateway.state`.
 
@@ -76,7 +76,7 @@ cd android && .\gradlew test
 
 A websocket-focused Python TUI lives under [`tools/dev`](/C:/Users/justi/Projects/sms-socket-app/tools/dev/README.md). It reads the default gateway URL from [`docs/asyncapi.yml`](/C:/Users/justi/Projects/sms-socket-app/docs/asyncapi.yml) and includes interactive commands for:
 
-- authenticating with the API key
+- connecting with bearer-authenticated websocket handshakes
 - sending SMS with `sendSms`
 - sending MMS with `sendMms`
 - requesting history with `rehydrate`
@@ -101,8 +101,8 @@ Suggested interactive flow:
 
 1. Start the Android gateway from the app and note the API key.
 2. Launch the TUI from the repo root.
-3. Run `connect` if you need to reconnect or switch URLs.
-4. Run `auth <api-key>`.
+3. Run `auth <api-key>`.
+4. Run `connect [ws-url]` if you need to reconnect or switch URLs with the stored key.
 5. Use `state` to verify the gateway is healthy and `subscriptions` to inspect SIM slots.
 6. Send a message with `send <phone> <message> [subscription-id]`.
 7. Request history with `history [since-ms] [limit]`.
