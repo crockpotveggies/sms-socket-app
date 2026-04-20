@@ -125,6 +125,13 @@ class SmsGatewayModule(
       promise.resolve(true)
       return
     }
+    if (!GatewayDialerSupport.isRoleAvailable(reactContext)) {
+      promise.reject(
+        "ROLE_DIALER_UNAVAILABLE",
+        "This device or build does not currently expose the Android dialer role.",
+      )
+      return
+    }
 
     pendingDialerRolePromise = promise
     val launched =
@@ -143,6 +150,12 @@ class SmsGatewayModule(
   @ReactMethod
   fun getDialerStatus(promise: Promise) {
     promise.resolve(JsonBridge.toWritableMap(GatewayDialerManager.getDialerStatus(reactContext)))
+  }
+
+  @ReactMethod
+  fun consumePendingUiRequest(promise: Promise) {
+    val request = GatewayUiRequestStore.consume() ?: JSONObject()
+    promise.resolve(JsonBridge.toWritableMap(request))
   }
 
   @ReactMethod
@@ -536,6 +549,24 @@ class SmsGatewayModule(
       )
     } catch (error: Exception) {
       promise.reject("CALL_MUTE_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun sendDtmf(request: ReadableMap, promise: Promise) {
+    val callId = request.getString("callId")?.trim() ?: ""
+    val digits = request.getString("digits")?.trim() ?: ""
+    if (callId.isBlank() || digits.isBlank()) {
+      promise.reject("INVALID_CALL", "callId and digits are required.")
+      return
+    }
+
+    try {
+      promise.resolve(
+        JsonBridge.toWritableMap(GatewayDialerManager.sendDtmf(reactContext, callId, digits)),
+      )
+    } catch (error: Exception) {
+      promise.reject("CALL_DTMF_FAILED", error.message, error)
     }
   }
 

@@ -39,11 +39,13 @@ describe('SmsGateway helpers', () => {
     expect(typeof SmsGateway.sendSmsMessage).toBe('function');
     expect(typeof SmsGateway.requestDialerRole).toBe('function');
     expect(typeof SmsGateway.getDialerStatus).toBe('function');
+    expect(typeof SmsGateway.consumePendingUiRequest).toBe('function');
     expect(typeof SmsGateway.placeCall).toBe('function');
     expect(typeof SmsGateway.answerCall).toBe('function');
     expect(typeof SmsGateway.rejectCall).toBe('function');
     expect(typeof SmsGateway.endCall).toBe('function');
     expect(typeof SmsGateway.setMuted).toBe('function');
+    expect(typeof SmsGateway.sendDtmf).toBe('function');
     expect(typeof SmsGateway.showInCallScreen).toBe('function');
   });
 

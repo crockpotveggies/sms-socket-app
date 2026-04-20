@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
+  AppState,
   Alert,
   LayoutAnimation,
   PermissionsAndroid,
@@ -27,6 +28,7 @@ import {
 import {AppHeader} from './src/components/AppHeader';
 import {BottomTabBar} from './src/components/BottomTabBar';
 import {CallsScreen} from './src/screens/calls/CallsScreen';
+import {DialerScreen} from './src/screens/calls/DialerScreen';
 import {GatewayScreen} from './src/screens/gateway/GatewayScreen';
 import {ConversationScreen} from './src/screens/messages/ConversationScreen';
 import {MessagesHome} from './src/screens/messages/MessagesHome';
@@ -38,6 +40,7 @@ const DEFAULT_PORT = '8787';
 type ScreenState =
   | {name: 'messages'}
   | {name: 'calls'}
+  | {name: 'dialer'}
   | {name: 'gateway'}
   | {
       name: 'conversation';
@@ -75,6 +78,23 @@ function App(): React.JSX.Element {
   const [refreshingMessages, setRefreshingMessages] = useState(false);
   const activeConversationRef = useRef<ScreenState>({name: 'messages'});
   const messagingReadyRef = useRef(false);
+  const dialerRecentCallsEnabledRef = useRef(false);
+
+  const syncPendingUiRequest = useCallback(async () => {
+    const request = await SmsGateway.consumePendingUiRequest();
+    if (!request?.screen) {
+      return;
+    }
+
+    if (request.screen === 'calls') {
+      setScreen({name: 'calls'});
+      return;
+    }
+
+    if (request.screen === 'dialer') {
+      setScreen({name: 'dialer'});
+    }
+  }, []);
 
   useEffect(() => {
     if (
@@ -175,6 +195,16 @@ function App(): React.JSX.Element {
     messagingReadyRef.current = messagingReady;
   }, [messagingReady]);
 
+  const canReadRecentCalls = Boolean(
+    status &&
+      !status.dialerMissingPermissions.includes('android.permission.READ_CALL_LOG'),
+  );
+  const onCallSurface = screen.name === 'calls' || screen.name === 'dialer';
+
+  useEffect(() => {
+    dialerRecentCallsEnabledRef.current = canReadRecentCalls;
+  }, [canReadRecentCalls]);
+
   useEffect(() => {
     const subscription = SmsGateway.addListener(
       (nativeEvent: SmsGatewayNativeEvent) => {
@@ -206,16 +236,15 @@ function App(): React.JSX.Element {
           }
 
           if (event.type === 'call.added' || event.type === 'dialer.ui.requested') {
-            setScreen({name: 'calls'});
+            syncPendingUiRequest().catch(() => undefined);
           }
 
           if (event.type.startsWith('call.') || event.type === 'dialer.state') {
             loadGatewayStatus().catch(() => undefined);
+            const currentScreen = activeConversationRef.current;
             if (
-              status &&
-              !status.dialerMissingPermissions.includes(
-                'android.permission.READ_CALL_LOG',
-              )
+              dialerRecentCallsEnabledRef.current &&
+              (currentScreen.name === 'calls' || currentScreen.name === 'dialer')
             ) {
               setRecentCallsLoading(true);
               loadRecentCalls().catch(() => undefined);
@@ -225,9 +254,25 @@ function App(): React.JSX.Element {
       },
     );
 
-    loadGatewayStatus().catch(() => undefined);
+    loadGatewayStatus()
+      .then(() => syncPendingUiRequest())
+      .catch(() => undefined);
     return () => subscription.remove();
-  }, [loadConversations, loadGatewayStatus, loadMessages, loadRecentCalls, status]);
+  }, [loadConversations, loadGatewayStatus, loadMessages, loadRecentCalls, syncPendingUiRequest]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') {
+        return;
+      }
+
+      loadGatewayStatus()
+        .then(() => syncPendingUiRequest())
+        .catch(() => undefined);
+    });
+
+    return () => subscription.remove();
+  }, [loadGatewayStatus, syncPendingUiRequest]);
 
   useEffect(() => {
     if (!messagingReady) {
@@ -244,18 +289,20 @@ function App(): React.JSX.Element {
   }, [loadConversations, messagingReady]);
 
   useEffect(() => {
-    if (
-      !status ||
-      status.dialerMissingPermissions.includes('android.permission.READ_CALL_LOG')
-    ) {
+    if (!canReadRecentCalls) {
       setRecentCalls([]);
+      setRecentCallsLoading(false);
+      return;
+    }
+
+    if (!onCallSurface) {
       setRecentCallsLoading(false);
       return;
     }
 
     setRecentCallsLoading(true);
     loadRecentCalls().catch(() => undefined);
-  }, [loadRecentCalls, status]);
+  }, [canReadRecentCalls, loadRecentCalls, onCallSurface]);
 
   useEffect(() => {
     if (screen.name !== 'conversation') {
@@ -820,6 +867,8 @@ function App(): React.JSX.Element {
               title={
                 screen.name === 'gateway'
                   ? 'Gateway'
+                  : screen.name === 'dialer'
+                    ? 'Dialer'
                   : screen.name === 'calls'
                     ? 'Calls'
                     : 'SMS Socket'
@@ -864,17 +913,8 @@ function App(): React.JSX.Element {
             ) : screen.name === 'calls' ? (
               <CallsScreen
                 status={status}
-                number={dialerNumber}
                 recentCalls={recentCalls}
                 recentCallsLoading={recentCallsLoading}
-                onChangeNumber={setDialerNumber}
-                onPressDigit={digit => setDialerNumber(current => `${current}${digit}`)}
-                onBackspace={() =>
-                  setDialerNumber(current => current.slice(0, Math.max(0, current.length - 1)))
-                }
-                onPlaceCall={() => {
-                  placeCall().catch(() => undefined);
-                }}
                 onRequestRole={() => {
                   requestDialerRole().catch(() => undefined);
                 }}
@@ -897,6 +937,30 @@ function App(): React.JSX.Element {
                 }}
                 onShowInCallScreen={showDialpad => {
                   showInCallScreen(showDialpad).catch(() => undefined);
+                }}
+                onUseRecentNumber={setDialerNumber}
+              />
+            ) : screen.name === 'dialer' ? (
+              <DialerScreen
+                status={status}
+                number={dialerNumber}
+                recentCalls={recentCalls}
+                recentCallsLoading={recentCallsLoading}
+                onChangeNumber={setDialerNumber}
+                onPressDigit={digit => setDialerNumber(current => `${current}${digit}`)}
+                onBackspace={() =>
+                  setDialerNumber(current => current.slice(0, Math.max(0, current.length - 1)))
+                }
+                onPlaceCall={() => {
+                  placeCall().catch(() => undefined);
+                }}
+                onRequestRole={() => {
+                  requestDialerRole().catch(() => undefined);
+                }}
+                onRequestPermissions={() => {
+                  requestDialerPermissions().catch(error => {
+                    Alert.alert('Call permissions', String(error));
+                  });
                 }}
                 onUseRecentNumber={setDialerNumber}
               />
@@ -945,6 +1009,8 @@ function App(): React.JSX.Element {
               active={
                 screen.name === 'gateway'
                   ? 'gateway'
+                  : screen.name === 'dialer'
+                    ? 'dialer'
                   : screen.name === 'calls'
                     ? 'calls'
                     : 'messages'
@@ -953,6 +1019,8 @@ function App(): React.JSX.Element {
                 setScreen(
                   tab === 'gateway'
                     ? {name: 'gateway'}
+                    : tab === 'dialer'
+                      ? {name: 'dialer'}
                     : tab === 'calls'
                       ? {name: 'calls'}
                       : {name: 'messages'},

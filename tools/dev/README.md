@@ -13,6 +13,8 @@ Main use cases:
 - request historical SMS/MMS events with `rehydrate`
 - watch inbound and outbound events in real time
 
+The gateway contract also exposes dialer commands such as `placeCall`, `answerCall`, `endCall`, `setMuted`, `sendDtmf`, and `showInCallScreen`, but this first-pass TUI still focuses on SMS/MMS operations.
+
 ## Requirements
 
 - Python 3.11+ recommended

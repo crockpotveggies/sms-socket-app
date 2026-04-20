@@ -9,25 +9,12 @@ import {
   formatDialerRoute,
 } from '../../SmsGateway';
 import {ActionButton} from '../../components/ActionButton';
-import {LabeledInput} from '../../components/LabeledInput';
 import {styles} from '../../styles/appStyles';
-
-const DIAL_PAD_ROWS = [
-  ['1', '2', '3'],
-  ['4', '5', '6'],
-  ['7', '8', '9'],
-  ['*', '0', '#'],
-];
 
 export function CallsScreen({
   status,
-  number,
   recentCalls,
   recentCallsLoading,
-  onChangeNumber,
-  onPressDigit,
-  onBackspace,
-  onPlaceCall,
   onRequestRole,
   onRequestPermissions,
   onAnswerCall,
@@ -38,13 +25,8 @@ export function CallsScreen({
   onUseRecentNumber,
 }: {
   status: GatewayStatus | null;
-  number: string;
   recentCalls: DialerRecentCall[];
   recentCallsLoading: boolean;
-  onChangeNumber: (value: string) => void;
-  onPressDigit: (digit: string) => void;
-  onBackspace: () => void;
-  onPlaceCall: () => void;
   onRequestRole: () => void;
   onRequestPermissions: () => void;
   onAnswerCall: (call: DialerCall) => void;
@@ -67,7 +49,7 @@ export function CallsScreen({
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Dialer status</Text>
+        <Text style={styles.sectionTitle}>Calls status</Text>
         <Text style={styles.detailText}>
           Role: {status?.dialerRoleGranted ? 'Default dialer' : 'Not default'} {'\n'}
           In-call service: {status?.inCallServiceHealthy ? 'Healthy' : 'Waiting / unavailable'}
@@ -78,56 +60,15 @@ export function CallsScreen({
           </Text>
         ) : null}
         <View style={styles.actionRow}>
-          <ActionButton label="Request dialer role" onPress={onRequestRole} />
-          <ActionButton label="Call permissions" onPress={onRequestPermissions} />
+          {status?.dialerRoleGranted === false ? (
+            <ActionButton label="Request dialer role" onPress={onRequestRole} />
+          ) : null}
+          {Boolean(status?.dialerMissingPermissions.length) ? (
+            <ActionButton label="Call permissions" onPress={onRequestPermissions} />
+          ) : null}
           <ActionButton
             label="Open in-call UI"
             onPress={() => onShowInCallScreen(false)}
-            tone="secondary"
-            disabled={activeCalls.length === 0}
-          />
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Dial pad</Text>
-        <LabeledInput
-          label="Number"
-          value={number}
-          onChangeText={onChangeNumber}
-          placeholder="Enter a phone number"
-          keyboardType="phone-pad"
-        />
-        <View style={styles.dialPad}>
-          {DIAL_PAD_ROWS.map(row => (
-            <View key={row.join('')} style={styles.dialPadRow}>
-              {row.map(digit => (
-                <Pressable
-                  key={digit}
-                  accessibilityRole="button"
-                  onPress={() => onPressDigit(digit)}
-                  style={styles.dialPadKey}>
-                  <Text style={styles.dialPadKeyText}>{digit}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ))}
-        </View>
-        <View style={styles.actionRow}>
-          <ActionButton
-            label="Backspace"
-            onPress={onBackspace}
-            tone="secondary"
-            disabled={number.length === 0}
-          />
-          <ActionButton
-            label="Place call"
-            onPress={onPlaceCall}
-            disabled={!dialerControlReady || number.trim().length === 0}
-          />
-          <ActionButton
-            label="Show dialpad"
-            onPress={() => onShowInCallScreen(true)}
             tone="secondary"
             disabled={activeCalls.length === 0}
           />
@@ -217,6 +158,21 @@ export function CallsScreen({
             </Pressable>
           ))
         )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Dialer handoff</Text>
+        <Text style={styles.detailText}>
+          Open the dedicated Dialer tab for keypad entry and outbound calling.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton
+            label="Show dialpad"
+            onPress={() => onShowInCallScreen(true)}
+            tone="secondary"
+            disabled={activeCalls.length === 0}
+          />
+        </View>
       </View>
     </ScrollView>
   );

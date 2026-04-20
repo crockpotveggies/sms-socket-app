@@ -21,6 +21,7 @@ object GatewayCommandParser {
       "rejectCall",
       "endCall" -> validateCallId(payload)
       "setMuted" -> validateMuted(payload)
+      "sendDtmf" -> validateDtmf(payload)
       "showInCallScreen" -> GatewayCommandValidation(
         ok = true,
         payload =
@@ -117,5 +118,31 @@ object GatewayCommandParser {
       ok = true,
       payload = JSONObject().put("callId", callId).put("muted", mutedValue),
     )
+  }
+
+  private fun validateDtmf(payload: JSONObject): GatewayCommandValidation {
+    val callId = payload.optString("callId").trim()
+    val rawDigits =
+      if (payload.has("digits") && !payload.isNull("digits")) {
+        payload.optString("digits")
+      } else {
+        ""
+      }
+
+    if (callId.isBlank() || rawDigits.trim().isBlank()) {
+      return GatewayCommandValidation(ok = false, error = "callId and digits are required")
+    }
+
+    return try {
+      GatewayCommandValidation(
+        ok = true,
+        payload =
+          JSONObject()
+            .put("callId", callId)
+            .put("digits", GatewayDtmf.normalizeDigits(rawDigits)),
+      )
+    } catch (error: IllegalArgumentException) {
+      GatewayCommandValidation(ok = false, error = error.message ?: "digits are invalid")
+    }
   }
 }

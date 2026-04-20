@@ -12,6 +12,7 @@ Android-only React Native SMS/MMS gateway that runs entirely on the phone. It re
 - Supports API-key authenticated local clients on the same LAN.
 - Restarts after reboot when the gateway was previously enabled.
 - Supports one outbound MMS attachment per message using inline base64 over the websocket API.
+- Supports Android default-dialer call control, including DTMF digits on active calls.
 
 ## Project layout
 
@@ -41,6 +42,8 @@ The server is local and cleartext by default. Typical message flow:
 4. Server pushes events such as `sms.received`, `mms.received`, `sms.outbound.sent`, `mms.outbound.sent`, and `gateway.state`.
 
 See [docs/asyncapi.yml](/C:/Users/justi/Projects/sms-socket-app/docs/asyncapi.yml) for the exact wire shape.
+
+Dialer commands are additive on the same websocket contract: `requestDialerRole`, `getDialerState`, `placeCall`, `answerCall`, `rejectCall`, `endCall`, `setMuted`, `sendDtmf`, and `showInCallScreen`.
 
 ## Development
 
@@ -123,5 +126,6 @@ The TUI prints websocket events as they arrive, so inbound SMS and outbound deli
 - Supported outbound attachment MIME families are `image/*`, `video/*`, `audio/*`, and `application/pdf`.
 - The React Native composer compresses oversized picked images where possible and rejects non-image files over 1 MB.
 - Group MMS is supported for inbound threads and websocket events, but outbound compose remains single-recipient in this first pass.
+- DTMF is sent through Android Telecom one character at a time using the active `Call`; cadence can vary a bit by device, and pause/wait characters are intentionally not supported in v1.
 - TLS is intentionally not bundled into the on-device server. If you need encryption beyond a trusted LAN, terminate TLS elsewhere.
 - Android background behavior still depends on OEM battery management. The foreground service and reboot recovery do the heavy lifting, but some vendors remain committed to chaos.

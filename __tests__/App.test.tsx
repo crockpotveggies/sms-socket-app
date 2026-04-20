@@ -45,6 +45,7 @@ jest.mock('../src/SmsGateway', () => {
       listSubscriptions: jest.fn(),
       markConversationRead: jest.fn().mockResolvedValue(true),
       answerCall: jest.fn().mockResolvedValue(true),
+      consumePendingUiRequest: jest.fn().mockResolvedValue({}),
       endCall: jest.fn().mockResolvedValue(true),
       placeCall: jest.fn().mockResolvedValue({requested: true}),
       pickMmsAttachment: jest.fn(),

@@ -44,6 +44,28 @@ export function CallsTabIcon({active}: {active: boolean}) {
   );
 }
 
+export function DialerTabIcon({active}: {active: boolean}) {
+  return (
+    <View style={styles.iconDialer}>
+      <View style={styles.iconDialerRow}>
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+      </View>
+      <View style={styles.iconDialerRow}>
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+      </View>
+      <View style={styles.iconDialerRow}>
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+        <View style={[styles.iconDialerDot, active ? styles.iconActiveFill : null]} />
+      </View>
+    </View>
+  );
+}
+
 export function SearchIcon({compact = false}: {compact?: boolean}) {
   return (
     <View style={compact ? styles.searchIconWrapCompact : styles.searchIconWrap}>

@@ -653,6 +653,21 @@ export const styles = StyleSheet.create({
     backgroundColor: '#7f97ac',
     transform: [{rotate: '-35deg'}, {translateX: 4}, {translateY: 1}],
   },
+  iconDialer: {
+    width: 22,
+    height: 22,
+    justifyContent: 'space-between',
+  },
+  iconDialerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  iconDialerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#7f97ac',
+  },
   searchIconWrap: {
     width: 18,
     height: 18,

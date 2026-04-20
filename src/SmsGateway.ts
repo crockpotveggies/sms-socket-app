@@ -75,6 +75,13 @@ export type DialerStatus = Pick<
   'dialerRoleGranted' | 'inCallServiceHealthy' | 'activeCalls' | 'dialerMissingPermissions'
 >;
 
+export type PendingUiRequest = {
+  screen?: 'calls' | 'dialer';
+  showDialpad?: boolean;
+  showWhenLocked?: boolean;
+  timestamp?: number;
+};
+
 export type DialerRecentCall = {
   id: string;
   number: string;
@@ -174,6 +181,11 @@ type SetMutedRequest = {
   muted: boolean;
 };
 
+type SendDtmfRequest = {
+  callId: string;
+  digits: string;
+};
+
 type ShowInCallScreenRequest = {
   showDialpad?: boolean;
 };
@@ -183,6 +195,7 @@ type NativeSmsGatewayModule = {
   requestDialerRole(): Promise<boolean>;
   getGatewayStatus(): Promise<GatewayStatus>;
   getDialerStatus(): Promise<DialerStatus>;
+  consumePendingUiRequest(): Promise<PendingUiRequest>;
   startGateway(config: StartGatewayArgs): Promise<StartGatewayResult>;
   stopGateway(): Promise<GatewayStatus>;
   generateApiKey(): Promise<GenerateApiKeyResult>;
@@ -213,6 +226,7 @@ type NativeSmsGatewayModule = {
   rejectCall(request: DialerCallRequest): Promise<boolean>;
   endCall(request: DialerCallRequest): Promise<boolean>;
   setMuted(request: SetMutedRequest): Promise<boolean>;
+  sendDtmf(request: SendDtmfRequest): Promise<Record<string, unknown>>;
   showInCallScreen(request: ShowInCallScreenRequest): Promise<boolean>;
   pickMmsAttachment(): Promise<GatewayAttachment>;
   openBatteryOptimizationSettings(): Promise<boolean>;
@@ -231,6 +245,7 @@ export const SmsGateway = {
   requestDialerRole: () => SmsGatewayModule.requestDialerRole(),
   getGatewayStatus: () => SmsGatewayModule.getGatewayStatus(),
   getDialerStatus: () => SmsGatewayModule.getDialerStatus(),
+  consumePendingUiRequest: () => SmsGatewayModule.consumePendingUiRequest(),
   startGateway: (config: StartGatewayArgs) => SmsGatewayModule.startGateway(config),
   stopGateway: () => SmsGatewayModule.stopGateway(),
   generateApiKey: () => SmsGatewayModule.generateApiKey(),
@@ -255,6 +270,7 @@ export const SmsGateway = {
   rejectCall: (request: DialerCallRequest) => SmsGatewayModule.rejectCall(request),
   endCall: (request: DialerCallRequest) => SmsGatewayModule.endCall(request),
   setMuted: (request: SetMutedRequest) => SmsGatewayModule.setMuted(request),
+  sendDtmf: (request: SendDtmfRequest) => SmsGatewayModule.sendDtmf(request),
   showInCallScreen: (request: ShowInCallScreenRequest = {}) =>
     SmsGatewayModule.showInCallScreen(request),
   pickMmsAttachment: () => SmsGatewayModule.pickMmsAttachment(),

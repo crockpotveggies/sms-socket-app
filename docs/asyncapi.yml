@@ -43,6 +43,8 @@ channels:
         $ref: "#/components/messages/EndCall"
       setMuted:
         $ref: "#/components/messages/SetMuted"
+      sendDtmf:
+        $ref: "#/components/messages/SendDtmf"
       showInCallScreen:
         $ref: "#/components/messages/ShowInCallScreen"
       ack:
@@ -103,6 +105,7 @@ operations:
       - $ref: "#/channels/gateway/messages/rejectCall"
       - $ref: "#/channels/gateway/messages/endCall"
       - $ref: "#/channels/gateway/messages/setMuted"
+      - $ref: "#/channels/gateway/messages/sendDtmf"
       - $ref: "#/channels/gateway/messages/showInCallScreen"
       - $ref: "#/channels/gateway/messages/ack"
   receiveGatewayEvents:
@@ -250,6 +253,16 @@ components:
       required:
         - callId
         - muted
+    SendDtmfPayload:
+      type: object
+      properties:
+        callId:
+          type: string
+        digits:
+          type: string
+      required:
+        - callId
+        - digits
     ShowInCallScreenPayload:
       type: object
       properties:
@@ -519,6 +532,16 @@ components:
                 const: setMuted
               payload:
                 $ref: "#/components/schemas/SetMutedPayload"
+    SendDtmf:
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/Envelope"
+          - type: object
+            properties:
+              type:
+                const: sendDtmf
+              payload:
+                $ref: "#/components/schemas/SendDtmfPayload"
     ShowInCallScreen:
       payload:
         allOf:

@@ -212,6 +212,17 @@ class GatewayWebSocketServer(
               ),
             ),
           )
+        "sendDtmf" ->
+          sendResponse(
+            conn,
+            requestId,
+            true,
+            GatewayDialerManager.sendDtmf(
+              context,
+              normalizedPayload.getString("callId"),
+              normalizedPayload.getString("digits"),
+            ),
+          )
         "showInCallScreen" ->
           sendResponse(
             conn,

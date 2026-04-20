@@ -124,11 +124,13 @@ object GatewayDialerManager {
 
   @Synchronized
   fun getDialerStatus(context: Context): JSONObject =
-    JSONObject()
-      .put("dialerRoleGranted", GatewayDialerSupport.isDefaultDialer(context))
-      .put("inCallServiceHealthy", GatewayDialerSupport.isDefaultDialer(context) && serviceHealthy)
-      .put("activeCalls", activeCallsJson())
-      .put("dialerMissingPermissions", JSONArray(GatewayPermissions.missingDialerPermissions(context)))
+    JSONObject().apply {
+      val roleGranted = GatewayDialerSupport.isDefaultDialer(context)
+      put("dialerRoleGranted", roleGranted)
+      put("inCallServiceHealthy", roleGranted && serviceHealthy)
+      put("activeCalls", if (roleGranted) activeCallsJson() else JSONArray())
+      put("dialerMissingPermissions", JSONArray(GatewayPermissions.missingDialerPermissions(context)))
+    }
 
   fun listRecentCalls(context: Context, limit: Int): JSONArray =
     GatewayRecentCallRepository(context).listRecentCalls(limit)
@@ -205,6 +207,19 @@ object GatewayDialerManager {
     return true
   }
 
+  fun sendDtmf(
+    context: Context,
+    callId: String,
+    digits: String,
+  ): JSONObject {
+    ensureDialerRole(context)
+    return dispatchDtmf(
+      callId = callId,
+      digits = digits,
+      playerResolver = { requestedCallId -> CallDtmfTonePlayer(requireCall(requestedCallId)) },
+    )
+  }
+
   fun showInCallScreen(
     context: Context,
     showDialpad: Boolean,
@@ -273,6 +288,28 @@ object GatewayDialerManager {
     GatewayRuntime.recordEvent("dialer.state", getDialerStatus(context))
   }
 
+  internal fun dispatchDtmf(
+    callId: String,
+    digits: String,
+    playerResolver: (String) -> GatewayDtmfTonePlayer,
+    sequenceSender: (String, GatewayDtmfTonePlayer) -> Unit = { normalizedDigits, player ->
+      GatewayDtmf.playSequence(normalizedDigits, player)
+    },
+  ): JSONObject {
+    val normalizedCallId = callId.trim()
+    if (normalizedCallId.isBlank()) {
+      throw IllegalArgumentException("callId is required")
+    }
+
+    val normalizedDigits = GatewayDtmf.normalizeDigits(digits)
+    val player = playerResolver(normalizedCallId)
+    sequenceSender(normalizedDigits, player)
+    return JSONObject()
+      .put("sent", true)
+      .put("callId", normalizedCallId)
+      .put("digits", normalizedDigits)
+  }
+
   @Synchronized
   private fun requireCall(callId: String): Call =
     callsById[callId] ?: throw IllegalArgumentException("Unknown callId: $callId")
@@ -299,6 +336,18 @@ object GatewayDialerManager {
       throw IllegalStateException(
         "Answer-call permissions are required before controlling calls: ${missing.joinToString()}",
       )
+    }
+  }
+
+  private class CallDtmfTonePlayer(
+    private val call: Call,
+  ) : GatewayDtmfTonePlayer {
+    override fun playTone(digit: Char) {
+      call.playDtmfTone(digit)
+    }
+
+    override fun stopTone() {
+      call.stopDtmfTone()
     }
   }
 }

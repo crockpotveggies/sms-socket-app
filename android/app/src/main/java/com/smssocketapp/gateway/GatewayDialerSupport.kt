@@ -8,6 +8,15 @@ import android.os.Build
 import android.telecom.TelecomManager
 
 object GatewayDialerSupport {
+  fun isRoleAvailable(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+      return true
+    }
+
+    val roleManager = context.getSystemService(RoleManager::class.java) ?: return false
+    return roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)
+  }
+
   fun isDefaultDialer(context: Context): Boolean {
     val telecomManager = context.getSystemService(TelecomManager::class.java) ?: return false
     return telecomManager.defaultDialerPackage == context.packageName
@@ -29,6 +38,9 @@ object GatewayDialerSupport {
     activity.runOnUiThread {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val roleManager = activity.getSystemService(RoleManager::class.java)
+        if (roleManager == null || !roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+          return@runOnUiThread
+        }
         activity.startActivityForResult(
           roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER),
           requestCode,

@@ -2,28 +2,34 @@ import React from 'react';
 import {Pressable, Text, View} from 'react-native';
 
 import {styles} from '../styles/appStyles';
-import {CallsTabIcon, GatewayTabIcon, MessagesTabIcon} from './Icons';
+import {CallsTabIcon, DialerTabIcon, GatewayTabIcon, MessagesTabIcon} from './Icons';
 
 export function BottomTabBar({
   active,
   onChange,
 }: {
-  active: 'messages' | 'calls' | 'gateway';
-  onChange: (tab: 'messages' | 'calls' | 'gateway') => void;
+  active: 'calls' | 'dialer' | 'messages' | 'gateway';
+  onChange: (tab: 'calls' | 'dialer' | 'messages' | 'gateway') => void;
 }) {
   return (
     <View style={styles.bottomBar}>
-      <BottomTabButton
-        label="Messages"
-        active={active === 'messages'}
-        icon={<MessagesTabIcon active={active === 'messages'} />}
-        onPress={() => onChange('messages')}
-      />
       <BottomTabButton
         label="Calls"
         active={active === 'calls'}
         icon={<CallsTabIcon active={active === 'calls'} />}
         onPress={() => onChange('calls')}
+      />
+      <BottomTabButton
+        label="Dialer"
+        active={active === 'dialer'}
+        icon={<DialerTabIcon active={active === 'dialer'} />}
+        onPress={() => onChange('dialer')}
+      />
+      <BottomTabButton
+        label="Messages"
+        active={active === 'messages'}
+        icon={<MessagesTabIcon active={active === 'messages'} />}
+        onPress={() => onChange('messages')}
       />
       <BottomTabButton
         label="Gateway"

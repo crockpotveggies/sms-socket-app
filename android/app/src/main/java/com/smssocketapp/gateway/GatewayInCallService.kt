@@ -9,6 +9,26 @@ import android.telecom.InCallService
 import com.smssocketapp.MainActivity
 
 class GatewayInCallService : InCallService() {
+  private fun launchCallUi(
+    openDialpad: Boolean,
+    showWhenLocked: Boolean,
+  ) {
+    GatewayUiRequestStore.request(
+      screen = if (openDialpad) "dialer" else "calls",
+      showDialpad = openDialpad,
+      showWhenLocked = showWhenLocked,
+    )
+    startActivity(
+      Intent(this, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        putExtra("openCalls", !openDialpad)
+        putExtra("openDialer", openDialpad)
+        putExtra("showDialpad", openDialpad)
+        putExtra("showWhenLocked", showWhenLocked)
+      },
+    )
+  }
+
   override fun onCreate() {
     super.onCreate()
     GatewayDialerManager.onServiceCreated(this)
@@ -22,6 +42,8 @@ class GatewayInCallService : InCallService() {
   override fun onCallAdded(call: Call) {
     super.onCallAdded(call)
     GatewayDialerManager.onCallAdded(call)
+    val isIncoming = call.state == Call.STATE_RINGING
+    launchCallUi(openDialpad = false, showWhenLocked = isIncoming)
   }
 
   override fun onCallRemoved(call: Call) {
@@ -40,13 +62,7 @@ class GatewayInCallService : InCallService() {
       "dialer.ui.requested",
       org.json.JSONObject().put("showDialpad", showDialpad),
     )
-    startActivity(
-      Intent(this, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        putExtra("openCalls", true)
-        putExtra("showDialpad", showDialpad)
-      },
-    )
+    launchCallUi(openDialpad = showDialpad, showWhenLocked = false)
   }
 
   override fun onMuteStateChanged(isMuted: Boolean) {
