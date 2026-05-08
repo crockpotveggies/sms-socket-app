@@ -16,6 +16,16 @@ object GatewayRuntime {
   private var applicationContext: Context? = null
   private var reactContextRef: WeakReference<ReactApplicationContext>? = null
   private var server: GatewayWebSocketServer? = null
+  /// Last config we successfully started the server with. Compared
+  /// against the incoming config in `startServer` so we only cycle
+  /// the WebSocket on a real config change (port / host / api_key).
+  /// Without this, every SMS broadcast triggers
+  /// `SmsDeliverReceiver` → `ensureStarted` → `onStartCommand` →
+  /// `startServer`, the server gets unconditionally restarted, and
+  /// every connected client receives a Close frame on every inbound
+  /// SMS — a textbook "kicks every connection on every event"
+  /// regression. Cleared on stopServer.
+  private var currentConfig: GatewayConfig? = null
   private var openConnections: Int = 0
 
   fun initialize(context: Context) {
@@ -39,7 +49,26 @@ object GatewayRuntime {
 
   @Synchronized
   fun startServer(context: Context, config: GatewayConfig) {
-    if (server != null) {
+    val existing = server
+    val previous = currentConfig
+    if (existing != null && previous != null && previous.isNetworkEquivalent(config)) {
+      // Idempotent: server is already running with the same
+      // observable config. The SMS-broadcast → ensureStarted path
+      // hits this branch on every inbound; without the early-return
+      // we'd cycle the WebSocket on every SMS and kick every
+      // connected client.
+      Log.d(TAG, "startServer: idempotent (already running with same config)")
+      // Re-emit state so the React side / clients see a fresh
+      // gateway.state ping after the foreground-service notification
+      // refresh — keeps the UI in sync.
+      emitState()
+      return
+    }
+
+    if (existing != null) {
+      // Real config change (port / host / api_key) — cycle the
+      // server so the new config takes effect.
+      Log.i(TAG, "startServer: config changed; restarting server")
       stopServer()
     }
 
@@ -59,6 +88,7 @@ object GatewayRuntime {
     try {
       socketServer.start()
       server = socketServer
+      currentConfig = config
       emitState()
     } catch (error: Exception) {
       Log.e(TAG, "Failed to start WebSocket server", error)
@@ -70,9 +100,11 @@ object GatewayRuntime {
   fun stopServer() {
     server?.stop(1000)
     server = null
+    currentConfig = null
     openConnections = 0
     emitState()
   }
+
 
   fun recordEvent(type: String, payload: JSONObject): JSONObject {
     val context = applicationContext ?: throw IllegalStateException("GatewayRuntime not initialized")

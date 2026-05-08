@@ -11,7 +11,26 @@ data class GatewayConfig(
   val port: Int = 8787,
   val apiKeyHash: String? = null,
   val apiKeyPreview: String = "",
-)
+) {
+  /**
+   * True iff `other` would produce a server identical to this one
+   * at the network layer — same bind address, same auth challenge.
+   * Used by `GatewayRuntime.startServer` to short-circuit the
+   * SMS-broadcast restart cycle: every inbound SMS calls
+   * `ensureStarted` → `onStartCommand` → `startServer`, but the
+   * config hasn't actually changed, so cycling the WebSocket
+   * would just kick every connected client for no reason.
+   *
+   * Deliberately does NOT compare:
+   *   * `enabled` — `onStartCommand` already short-circuits on
+   *     `enabled=false`; once we're in `startServer`, `enabled`
+   *     is implied true.
+   *   * `apiKeyPreview` — display-only string; the hash drives
+   *     authentication.
+   */
+  fun isNetworkEquivalent(other: GatewayConfig): Boolean =
+    host == other.host && port == other.port && apiKeyHash == other.apiKeyHash
+}
 
 class GatewayConfigStore(private val context: Context) {
   private val preferences =
